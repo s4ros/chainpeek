@@ -83,3 +83,23 @@ func TestQuit(t *testing.T) {
 		t.Fatal("expected tea.Quit")
 	}
 }
+
+func TestCursorResetsWhenRawGone(t *testing.T) {
+	m := newTestModel()
+	m = press(m, "down")
+	m = press(m, "down")
+	m = press(m, "down")
+	if m.Cursor() != 3 {
+		t.Fatalf("last row -> %d", m.Cursor())
+	}
+	if m.Visible()[m.Cursor()].Raw != "fwd-drop" {
+		t.Fatalf("selected=%+v", m.Visible()[m.Cursor()])
+	}
+	m = press(m, "a")
+	if m.Query().Action != view.ActionAllow {
+		t.Fatal(m.Query().Action)
+	}
+	if m.Cursor() != 0 {
+		t.Fatalf("filtered-out raw -> cursor %d want 0", m.Cursor())
+	}
+}

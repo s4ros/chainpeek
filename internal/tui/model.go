@@ -83,10 +83,7 @@ func (m *Model) recompute() {
 		return
 	}
 	if restore < 0 {
-		restore = m.table.Cursor()
-		if restore < 0 || restore >= len(rows) {
-			restore = 0
-		}
+		restore = 0
 	}
 	m.table.SetCursor(restore)
 	m.cursorRaw = m.visible[m.table.Cursor()].Raw
