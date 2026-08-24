@@ -61,7 +61,7 @@ func (m Model) coloredTableView() string {
 
 func (m Model) header() string {
 	return fmt.Sprintf(
-		"chainpeek v%s    filter    %d/%d rules    chain:%s    action:%s    sort:%s",
+		"chainpeek v%s    filter    %d/%d rules    chain:%s ▾    action:%s    sort:%s",
 		version,
 		len(m.visible),
 		len(m.all),

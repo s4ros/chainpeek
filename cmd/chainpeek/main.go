@@ -88,7 +88,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	m := tui.New(loader, iptables.FilterTable(res.Rules), res.Warnings)
+	m := tui.New(loader, iptables.FilterTable(res.Rules), res.Chains, res.Warnings)
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

@@ -23,9 +23,25 @@ func rules() []iptables.Rule {
 	}
 }
 
+func testChains() []string {
+	return []string{"INPUT", "OUTPUT", "FORWARD"}
+}
+
 func newTestModel() Model {
 	r := rules()
-	return New(stubLoader{res: iptables.ParseResult{Rules: r}}, r, nil)
+	return New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: testChains()}}, r, testChains(), nil)
+}
+
+func equalStr(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func press(m Model, key string) Model {
@@ -81,13 +97,33 @@ func TestPortSort(t *testing.T) {
 func TestInitialWarningsInView(t *testing.T) {
 	r := rules()
 	warn := []string{"skipping malformed rule: -A INPUT", "skipping unexpected line: foo"}
-	m := sized(New(stubLoader{res: iptables.ParseResult{Rules: r}}, r, warn))
+	m := sized(New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: testChains()}}, r, testChains(), warn))
 	got := m.View().Content
 	if !strings.Contains(got, "skipping malformed rule: -A INPUT") {
 		t.Fatalf("initial warnings missing from View:\n%s", got)
 	}
 	if !strings.Contains(got, "skipping unexpected line: foo") {
 		t.Fatalf("initial warnings missing from View:\n%s", got)
+	}
+}
+
+func TestHeaderChainChip(t *testing.T) {
+	m := sized(newTestModel())
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "chain:ALL ▾") {
+		t.Fatalf("default chip missing:\n%s", got)
+	}
+	m = press(m, "2")
+	got = stripANSI(m.View().Content)
+	if !strings.Contains(got, "chain:INPUT ▾") {
+		t.Fatalf("INPUT chip missing:\n%s", got)
+	}
+}
+
+func TestNewStoresChains(t *testing.T) {
+	m := newTestModel()
+	if !equalStr(m.chains, testChains()) {
+		t.Fatalf("chains=%v", m.chains)
 	}
 }
 
@@ -157,7 +193,7 @@ func TestIPv4CIDRNotTruncated(t *testing.T) {
 		Source: cidr, Destination: cidr, Target: "ACCEPT",
 		Action: iptables.ActionAllow, Raw: "cidr-row",
 	}}
-	m := sized(New(stubLoader{res: iptables.ParseResult{Rules: r}}, r, nil))
+	m := sized(New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: []string{"INPUT"}}}, r, []string{"INPUT"}, nil))
 	row := ruleRow(r[0])
 	if !cellEq(row, cidr) {
 		t.Fatalf("ruleRow missing full CIDR: %v", row)
@@ -215,7 +251,7 @@ func TestUnselectedRowsColoredInView(t *testing.T) {
 		Table: "filter", Chain: "INPUT", Index: 1, Target: "DROP",
 		Action: iptables.ActionDeny, Raw: "only-deny",
 	}}
-	sel := sized(New(stubLoader{res: iptables.ParseResult{Rules: only}}, only, nil))
+	sel := sized(New(stubLoader{res: iptables.ParseResult{Rules: only, Chains: []string{"INPUT"}}}, only, []string{"INPUT"}, nil))
 	red := rowStyle(only[0]).Render("INPUT")
 	if strings.Contains(sel.View().Content, red) {
 		t.Fatal("selected row must stay unstyled so Reverse applies to the whole line")

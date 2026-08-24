@@ -19,6 +19,7 @@ const version = "0.1.0-dev"
 type Model struct {
 	loader    iptables.Loader
 	all       []iptables.Rule
+	chains    []string
 	query     view.Query
 	visible   []iptables.Rule
 	table     table.Model
@@ -30,10 +31,11 @@ type Model struct {
 	showHelp  bool
 }
 
-func New(loader iptables.Loader, rules []iptables.Rule, warnings []string) Model {
+func New(loader iptables.Loader, rules []iptables.Rule, chains []string, warnings []string) Model {
 	m := Model{
 		loader: loader,
 		all:    iptables.FilterTable(rules),
+		chains: append([]string(nil), chains...),
 	}
 	if len(warnings) > 0 {
 		m.status = strings.Join(warnings, "; ")
@@ -112,6 +114,7 @@ func (m *Model) reload() {
 		return
 	}
 	m.all = iptables.FilterTable(res.Rules)
+	m.chains = append([]string(nil), res.Chains...)
 	m.statusErr = false
 	if len(res.Warnings) > 0 {
 		m.status = strings.Join(res.Warnings, "; ")
