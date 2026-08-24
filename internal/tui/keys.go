@@ -8,18 +8,28 @@ import (
 
 func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 	switch key {
+	case "c":
+		m.chainFocus = true
+		m.resize()
+		return m, nil
+	case "tab", "\t":
+		m.chainFocus = !m.chainFocus
+		m.resize()
+		return m, nil
+	case "enter", "esc":
+		if m.chainFocus {
+			m.chainFocus = false
+			m.resize()
+			return m, nil
+		}
 	case "1":
-		m.query.Chain = ""
-		m.recompute()
+		m.setChain("")
 	case "2":
-		m.query.Chain = "INPUT"
-		m.recompute()
+		m.setChain("INPUT")
 	case "3":
-		m.query.Chain = "OUTPUT"
-		m.recompute()
+		m.setChain("OUTPUT")
 	case "4":
-		m.query.Chain = "FORWARD"
-		m.recompute()
+		m.setChain("FORWARD")
 	case "a":
 		m.query.Action = view.ActionAllow
 		m.recompute()
@@ -36,13 +46,52 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 		m.reload()
 	case "?":
 		m.showHelp = !m.showHelp
+		m.resize()
 	case "q", "ctrl+c":
 		return m, tea.Quit
-	case "up", "down", "pgup", "pgdown", "home", "end", "k", "j", "g", "G":
-		var cmd tea.Cmd
-		m.table, cmd = m.table.Update(tea.KeyPressMsg{Text: key})
-		m.syncCursorRaw()
-		return m, cmd
+	case "up", "k":
+		if m.chainFocus {
+			m.moveChain(-1)
+			return m, nil
+		}
+		return m.moveTable(key)
+	case "down", "j":
+		if m.chainFocus {
+			m.moveChain(1)
+			return m, nil
+		}
+		return m.moveTable(key)
+	case "pgup":
+		if m.chainFocus {
+			m.moveChain(-m.overlayHeight())
+			return m, nil
+		}
+		return m.moveTable(key)
+	case "pgdown":
+		if m.chainFocus {
+			m.moveChain(m.overlayHeight())
+			return m, nil
+		}
+		return m.moveTable(key)
+	case "home", "g":
+		if m.chainFocus {
+			m.jumpChain(0)
+			return m, nil
+		}
+		return m.moveTable(key)
+	case "end", "G":
+		if m.chainFocus {
+			m.jumpChain(len(m.overlayItems()) - 1)
+			return m, nil
+		}
+		return m.moveTable(key)
 	}
 	return m, nil
+}
+
+func (m Model) moveTable(key string) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.table, cmd = m.table.Update(tea.KeyPressMsg{Text: key})
+	m.syncCursorRaw()
+	return m, cmd
 }

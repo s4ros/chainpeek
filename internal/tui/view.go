@@ -11,13 +11,16 @@ import (
 	"github.com/s4ros/chainpeek/internal/view"
 )
 
-const keymapLine = "↑/↓ move  1 all  2 IN  3 OUT  4 FWD  a ALLOW  d DENY  f all  p port  r reload  ? help  q quit"
+const keymapLine = "↑/↓ move  c/tab chain  1 all  2 IN  3 OUT  4 FWD  a ALLOW  d DENY  f all  p port  r reload  ? help  q quit"
 
 const helpText = `Keys:
-  ↑/k  ↓/j     Move selection
+  ↑/k  ↓/j     Move selection (table, or chain list when focused)
   pgup/pgdn    Page
   g/home       First row
   G/end        Last row
+  c            Focus chain dropdown
+  tab          Toggle chain dropdown
+  enter/esc    Leave chain dropdown (keeps current chain)
   1            All chains
   2/3/4        INPUT / OUTPUT / FORWARD
   a / d / f    ALLOW / DENY / all actions
@@ -27,11 +30,18 @@ const helpText = `Keys:
   q / ctrl+c   Quit`
 
 func (m Model) View() tea.View {
-	body := m.coloredTableView()
+	var body string
 	if m.showHelp {
 		body = helpText
-	} else if len(m.visible) == 0 {
-		body = "no rules match filters\n" + body
+	} else {
+		if m.chainFocus {
+			body = m.chainOverlayView() + "\n"
+		}
+		tableView := m.coloredTableView()
+		if len(m.visible) == 0 {
+			tableView = "no rules match filters\n" + tableView
+		}
+		body += tableView
 	}
 	content := strings.Join([]string{m.header(), body, m.footer()}, "\n")
 	v := tea.NewView(content)
@@ -60,12 +70,16 @@ func (m Model) coloredTableView() string {
 }
 
 func (m Model) header() string {
+	chip := fmt.Sprintf("chain:%s ▾", chainLabel(m.query.Chain))
+	if m.chainFocus {
+		chip = lipgloss.NewStyle().Reverse(true).Bold(true).Render(chip)
+	}
 	return fmt.Sprintf(
-		"chainpeek v%s    filter    %d/%d rules    chain:%s ▾    action:%s    sort:%s",
+		"chainpeek v%s    filter    %d/%d rules    %s    action:%s    sort:%s",
 		version,
 		len(m.visible),
 		len(m.all),
-		chainLabel(m.query.Chain),
+		chip,
 		actionLabel(m.query.Action),
 		sortLabel(m.query.ByPort),
 	)

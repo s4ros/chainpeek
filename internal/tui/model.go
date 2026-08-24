@@ -17,18 +17,21 @@ import (
 const version = "0.1.0-dev"
 
 type Model struct {
-	loader    iptables.Loader
-	all       []iptables.Rule
-	chains    []string
-	query     view.Query
-	visible   []iptables.Rule
-	table     table.Model
-	cursorRaw string
-	status    string
-	statusErr bool
-	width     int
-	height    int
-	showHelp  bool
+	loader      iptables.Loader
+	all         []iptables.Rule
+	chains      []string
+	chainFocus  bool
+	chainIndex  int
+	chainOffset int
+	query       view.Query
+	visible     []iptables.Rule
+	table       table.Model
+	cursorRaw   string
+	status      string
+	statusErr   bool
+	width       int
+	height      int
+	showHelp    bool
 }
 
 func New(loader iptables.Loader, rules []iptables.Rule, chains []string, warnings []string) Model {
@@ -133,10 +136,154 @@ func (m *Model) resize() {
 		return
 	}
 	h := m.height - 4
+	if m.chainFocus && !m.showHelp {
+		h -= m.overlayHeight()
+	}
 	if h < 3 {
 		h = 3
 	}
 	m.table.SetHeight(h)
+}
+
+func (m Model) overlayItems() []string {
+	items := make([]string, 0, 1+len(m.chains))
+	items = append(items, "")
+	items = append(items, m.chains...)
+	return items
+}
+
+func (m *Model) syncChainIndex() {
+	if m.query.Chain == "" {
+		m.chainIndex = 0
+		return
+	}
+	for i, name := range m.chains {
+		if name == m.query.Chain {
+			m.chainIndex = i + 1
+			return
+		}
+	}
+	m.chainIndex = -1
+}
+
+func (m *Model) setChain(name string) {
+	m.query.Chain = name
+	m.syncChainIndex()
+	m.ensureChainVisible()
+	m.recompute()
+}
+
+func (m *Model) overlayHeight() int {
+	n := 1 + len(m.chains)
+	if m.height <= 0 {
+		return n
+	}
+	capH := m.height - 7 // header, footer, 3 table rows
+	if capH < 1 {
+		capH = 1
+	}
+	if n < capH {
+		return n
+	}
+	return capH
+}
+
+func (m *Model) ensureChainVisible() {
+	h := m.overlayHeight()
+	if m.chainIndex < 0 {
+		return
+	}
+	if m.chainIndex < m.chainOffset {
+		m.chainOffset = m.chainIndex
+	}
+	if m.chainIndex >= m.chainOffset+h {
+		m.chainOffset = m.chainIndex - h + 1
+	}
+	if m.chainOffset < 0 {
+		m.chainOffset = 0
+	}
+}
+
+func (m *Model) moveChain(delta int) {
+	items := m.overlayItems()
+	n := len(items)
+	if n == 0 {
+		return
+	}
+	i := m.chainIndex
+	if i < 0 {
+		if delta > 0 {
+			i = 0
+		} else {
+			i = n - 1
+		}
+	} else {
+		i += delta
+	}
+	if i < 0 {
+		i = 0
+	}
+	if i >= n {
+		i = n - 1
+	}
+	m.chainIndex = i
+	m.query.Chain = items[i]
+	m.ensureChainVisible()
+	m.recompute()
+}
+
+func (m *Model) jumpChain(i int) {
+	items := m.overlayItems()
+	n := len(items)
+	if n == 0 {
+		return
+	}
+	if i < 0 {
+		i = 0
+	}
+	if i >= n {
+		i = n - 1
+	}
+	m.chainIndex = i
+	m.query.Chain = items[i]
+	m.ensureChainVisible()
+	m.recompute()
+}
+
+func overlayLabel(name string) string {
+	if name == "" {
+		return "ALL"
+	}
+	return name
+}
+
+func (m Model) chainOverlayView() string {
+	items := m.overlayItems()
+	h := m.overlayHeight()
+	start := m.chainOffset
+	if start < 0 {
+		start = 0
+	}
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + h
+	if end > len(items) {
+		end = len(items)
+	}
+	var b strings.Builder
+	for i := start; i < end; i++ {
+		prefix := "  "
+		if i == m.chainIndex {
+			prefix = "▸ "
+		}
+		b.WriteString(prefix)
+		b.WriteString(overlayLabel(items[i]))
+		if i+1 < end {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 const minCIDRWidth = 18

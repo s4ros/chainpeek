@@ -275,3 +275,116 @@ func assertPlainRow(t *testing.T, row []string, label string) {
 		}
 	}
 }
+
+func TestChainOverlayFocus(t *testing.T) {
+	m := sized(newTestModel())
+	if strings.Contains(stripANSI(m.View().Content), "▸ ALL") {
+		t.Fatal("overlay visible before focus")
+	}
+	m = press(m, "c")
+	if !m.chainFocus {
+		t.Fatal("c should focus overlay")
+	}
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "▸ ALL") {
+		t.Fatalf("overlay missing ALL:\n%s", got)
+	}
+	if !strings.Contains(got, "INPUT") || !strings.Contains(got, "FORWARD") {
+		t.Fatalf("overlay missing chains:\n%s", got)
+	}
+	m = press(m, "c")
+	if !m.chainFocus {
+		t.Fatal("c while focused is a no-op")
+	}
+}
+
+func TestChainOverlayTabToggles(t *testing.T) {
+	m := sized(press(newTestModel(), "tab"))
+	if !m.chainFocus {
+		t.Fatal("tab should focus")
+	}
+	m = press(m, "tab")
+	if m.chainFocus {
+		t.Fatal("tab should unfocus")
+	}
+}
+
+func TestChainOverlayLiveFilter(t *testing.T) {
+	m := press(newTestModel(), "c")
+	m = press(m, "down")
+	if m.Query().Chain != "INPUT" {
+		t.Fatalf("live chain=%q", m.Query().Chain)
+	}
+	for _, r := range m.Visible() {
+		if r.Chain != "INPUT" {
+			t.Fatalf("visible %+v", r)
+		}
+	}
+	m = press(m, "esc")
+	if m.chainFocus {
+		t.Fatal("esc should unfocus")
+	}
+	if m.Query().Chain != "INPUT" {
+		t.Fatal("esc must not revert chain")
+	}
+	m = press(m, "c")
+	m = press(m, "enter")
+	if m.chainFocus {
+		t.Fatal("enter should unfocus")
+	}
+	if m.Query().Chain != "INPUT" {
+		t.Fatal("enter must not revert chain")
+	}
+}
+
+func TestChainShortcutsStay(t *testing.T) {
+	m := press(newTestModel(), "3")
+	if m.Query().Chain != "OUTPUT" {
+		t.Fatal(m.Query().Chain)
+	}
+	m = press(m, "c")
+	m = press(m, "1")
+	if m.Query().Chain != "" {
+		t.Fatal(m.Query().Chain)
+	}
+	if m.chainIndex != 0 {
+		t.Fatalf("ALL index=%d", m.chainIndex)
+	}
+}
+
+func TestMissingBuiltinHasNoOverlayCursor(t *testing.T) {
+	r := []iptables.Rule{{
+		Table: "filter", Chain: "CUSTOM", Index: 1, Target: "ACCEPT",
+		Action: iptables.ActionAllow, Raw: "custom",
+	}}
+	m := New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: []string{"CUSTOM"}}}, r, []string{"CUSTOM"}, nil)
+	m = press(m, "2")
+	if m.Query().Chain != "INPUT" {
+		t.Fatal(m.Query().Chain)
+	}
+	if m.chainIndex != -1 {
+		t.Fatalf("expected no ▸, index=%d", m.chainIndex)
+	}
+	if len(m.Visible()) != 0 {
+		t.Fatalf("expected empty table, got %+v", m.Visible())
+	}
+}
+
+func TestHelpHidesOverlayKeepsFocus(t *testing.T) {
+	m := sized(press(newTestModel(), "c"))
+	m = press(m, "?")
+	got := stripANSI(m.View().Content)
+	if !m.chainFocus {
+		t.Fatal("help should not clear chainFocus")
+	}
+	if strings.Contains(got, "▸ ALL") {
+		t.Fatal("help should hide overlay")
+	}
+	if !strings.Contains(got, "Focus chain dropdown") {
+		t.Fatalf("help should document chain dropdown:\n%s", got)
+	}
+	m = press(m, "?")
+	if !strings.Contains(stripANSI(m.View().Content), "▸ ALL") {
+		t.Fatal("closing help should restore overlay")
+	}
+}
