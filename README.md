@@ -51,6 +51,7 @@ chainpeek --file testdata/filter.rules
 | Key | Action |
 |-----|--------|
 | `↑` / `k`, `↓` / `j` | Move selection |
+| `c` / `Tab` | Focus / toggle chain dropdown |
 | `1` | All chains |
 | `2` / `3` / `4` | INPUT / OUTPUT / FORWARD |
 | `a` / `d` / `f` | ALLOW / DENY / all actions |
@@ -58,6 +59,8 @@ chainpeek --file testdata/filter.rules
 | `r` | Reload rules |
 | `?` | Help |
 | `q` | Quit |
+
+The chain dropdown lists every `*filter` chain, including user-defined and empty ones. Shortcuts `1`–`4` always jump to ALL / INPUT / OUTPUT / FORWARD.
 
 ALLOW is `ACCEPT`. DENY is `DROP` or `REJECT`.
 

@@ -41,3 +41,9 @@ func TestUsageReload(t *testing.T) {
 		t.Fatal("usage should mention Reload")
 	}
 }
+
+func TestUsageChainDropdown(t *testing.T) {
+	if !strings.Contains(usage, "c / tab") && !strings.Contains(usage, "c/tab") {
+		t.Fatal("usage should mention chain dropdown keys")
+	}
+}

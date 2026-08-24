@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -386,5 +387,66 @@ func TestHelpHidesOverlayKeepsFocus(t *testing.T) {
 	m = press(m, "?")
 	if !strings.Contains(stripANSI(m.View().Content), "▸ ALL") {
 		t.Fatal("closing help should restore overlay")
+	}
+}
+
+func TestReloadDropsMissingChain(t *testing.T) {
+	r := rules()
+	loader := &stubLoader{res: iptables.ParseResult{
+		Rules:  r,
+		Chains: []string{"INPUT", "OUTPUT", "FORWARD", "DOCKER"},
+	}}
+	m := New(loader, r, []string{"INPUT", "OUTPUT", "FORWARD", "DOCKER"}, nil)
+	m.setChain("DOCKER")
+	if m.Query().Chain != "DOCKER" {
+		t.Fatal(m.Query().Chain)
+	}
+	loader.res = iptables.ParseResult{Rules: r, Chains: []string{"INPUT", "OUTPUT", "FORWARD"}}
+	m = press(m, "r")
+	if m.Query().Chain != "" {
+		t.Fatalf("chain=%q", m.Query().Chain)
+	}
+	if m.chainIndex != 0 {
+		t.Fatalf("index=%d", m.chainIndex)
+	}
+	if m.status != "chain DOCKER gone, showing ALL" {
+		t.Fatalf("status=%q", m.status)
+	}
+	if m.statusErr {
+		t.Fatal("gone chain is not an error")
+	}
+}
+
+func TestReloadKeepsExistingChain(t *testing.T) {
+	r := rules()
+	loader := &stubLoader{res: iptables.ParseResult{Rules: r, Chains: testChains()}}
+	m := New(loader, r, testChains(), nil)
+	m.setChain("OUTPUT")
+	m = press(m, "r")
+	if m.Query().Chain != "OUTPUT" {
+		t.Fatal(m.Query().Chain)
+	}
+	if m.statusErr {
+		t.Fatal(m.status)
+	}
+}
+
+func TestChainOverlayScrolls(t *testing.T) {
+	chains := make([]string, 30)
+	for i := range chains {
+		chains[i] = fmt.Sprintf("C%d", i)
+	}
+	r := rules()
+	m := New(stubLoader{}, r, chains, nil)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	m = next.(Model)
+	m = press(m, "c")
+	m = press(m, "G")
+	got := stripANSI(m.View().Content)
+	if strings.Contains(got, "▸ ALL") {
+		t.Fatalf("scrolled overlay still shows ALL:\n%s", got)
+	}
+	if !strings.Contains(got, "C29") {
+		t.Fatalf("last chain missing:\n%s", got)
 	}
 }

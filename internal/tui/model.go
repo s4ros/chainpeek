@@ -119,11 +119,29 @@ func (m *Model) reload() {
 	m.all = iptables.FilterTable(res.Rules)
 	m.chains = append([]string(nil), res.Chains...)
 	m.statusErr = false
+	prev := m.query.Chain
+	if prev != "" {
+		found := false
+		for _, c := range m.chains {
+			if c == prev {
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.query.Chain = ""
+			m.status = "chain " + prev + " gone, showing ALL"
+			m.syncChainIndex()
+			m.recompute()
+			return
+		}
+	}
 	if len(res.Warnings) > 0 {
 		m.status = strings.Join(res.Warnings, "; ")
 	} else {
 		m.status = "reloaded"
 	}
+	m.syncChainIndex()
 	m.recompute()
 }
 
