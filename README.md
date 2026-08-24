@@ -23,7 +23,7 @@ Status: interactive TUI is implemented. Use `--file` for dumps or run live with 
 
 ## Requirements
 
-- Go 1.24+
+- Go 1.25+
 - Linux with `iptables-save` on `PATH` (for live mode)
 - Root or `CAP_NET_ADMIN` to read the live ruleset (file mode needs neither)
 

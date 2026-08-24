@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -26,7 +27,7 @@ const helpText = `Keys:
   q / ctrl+c   Quit`
 
 func (m Model) View() tea.View {
-	body := m.table.View()
+	body := m.coloredTableView()
 	if m.showHelp {
 		body = helpText
 	} else if len(m.visible) == 0 {
@@ -36,6 +37,26 @@ func (m Model) View() tea.View {
 	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
+}
+
+// coloredTableView paints ALLOW/DENY/OTHER on unselected rows only. The
+// selected row stays plain so table.Styles.Selected Reverse applies to the
+// whole line. bubbles/v2 table.SetStyles takes a Styles struct, not a function.
+func (m Model) coloredTableView() string {
+	cur := m.table.Cursor()
+	rows := make([]table.Row, len(m.visible))
+	for i, r := range m.visible {
+		row := ruleRow(r)
+		if i != cur {
+			style := rowStyle(r)
+			for j, c := range row {
+				row[j] = style.Render(c)
+			}
+		}
+		rows[i] = row
+	}
+	m.table.SetRows(rows)
+	return m.table.View()
 }
 
 func (m Model) header() string {

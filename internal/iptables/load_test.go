@@ -1,9 +1,12 @@
 package iptables
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -22,6 +25,39 @@ func TestFileLoaderMissing(t *testing.T) {
 	_, err := (FileLoader{Path: "no-such-file"}).Load()
 	if err == nil {
 		t.Fatal("expected error")
+	}
+	if !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
+		t.Fatalf("want not-exist, got %v", err)
+	}
+	if !strings.HasPrefix(err.Error(), "chainpeek: open no-such-file:") {
+		t.Fatalf("got %q", err.Error())
+	}
+}
+
+func TestCmdLoaderNotFound(t *testing.T) {
+	_, err := (CmdLoader{Name: "chainpeek-no-such-iptables-save"}).Load()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	want := "chainpeek: iptables-save not found on PATH (try --file)"
+	if err.Error() != want {
+		t.Fatalf("got %q want %q", err.Error(), want)
+	}
+}
+
+func TestCmdLoaderPermission(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "iptables-save")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := (CmdLoader{Name: bin}).Load()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	want := "chainpeek: cannot read live rules (need root or --file)"
+	if err.Error() != want {
+		t.Fatalf("got %q want %q", err.Error(), want)
 	}
 }
 

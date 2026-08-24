@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseHelp(t *testing.T) {
 	o, err := parseArgs([]string{"--help"})
@@ -27,5 +30,14 @@ func TestParseUnknown(t *testing.T) {
 	_, err := parseArgs([]string{"--nope"})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestUsageReload(t *testing.T) {
+	if strings.Contains(usage, "Refresh") {
+		t.Fatal("usage should say Reload, not Refresh")
+	}
+	if !strings.Contains(usage, "Reload") {
+		t.Fatal("usage should mention Reload")
 	}
 }

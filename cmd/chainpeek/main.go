@@ -28,7 +28,7 @@ Keyboard:
   2/3/4        INPUT / OUTPUT / FORWARD
   a / d / f    ALLOW / DENY / all actions
   p            Sort by port
-  r            Refresh
+  r            Reload
   ?            Help
   q            Quit
 `
@@ -88,7 +88,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	m := tui.New(loader, iptables.FilterTable(res.Rules))
+	m := tui.New(loader, iptables.FilterTable(res.Rules), res.Warnings)
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

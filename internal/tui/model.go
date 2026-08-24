@@ -30,10 +30,13 @@ type Model struct {
 	showHelp  bool
 }
 
-func New(loader iptables.Loader, rules []iptables.Rule) Model {
+func New(loader iptables.Loader, rules []iptables.Rule, warnings []string) Model {
 	m := Model{
 		loader: loader,
 		all:    iptables.FilterTable(rules),
+	}
+	if len(warnings) > 0 {
+		m.status = strings.Join(warnings, "; ")
 	}
 	m.table = table.New(
 		table.WithColumns(ruleColumns()),
@@ -121,6 +124,7 @@ func (m *Model) reload() {
 func (m *Model) resize() {
 	if m.width > 0 {
 		m.table.SetWidth(m.width)
+		m.table.SetColumns(columnsForWidth(m.width))
 	}
 	if m.height <= 0 {
 		return
@@ -132,6 +136,8 @@ func (m *Model) resize() {
 	m.table.SetHeight(h)
 }
 
+const minCIDRWidth = 18
+
 func ruleColumns() []table.Column {
 	return []table.Column{
 		{Title: "#", Width: 4},
@@ -139,10 +145,29 @@ func ruleColumns() []table.Column {
 		{Title: "PROTO", Width: 6},
 		{Title: "DPORT", Width: 10},
 		{Title: "SPORT", Width: 10},
-		{Title: "SOURCE", Width: 16},
-		{Title: "DESTINATION", Width: 16},
+		{Title: "SOURCE", Width: minCIDRWidth},
+		{Title: "DESTINATION", Width: minCIDRWidth},
 		{Title: "TARGET", Width: 12},
 	}
+}
+
+func columnsForWidth(width int) []table.Column {
+	cols := ruleColumns()
+	if width <= 0 {
+		return cols
+	}
+	used := 2 * len(cols) // Cell Padding(0, 1)
+	for _, c := range cols {
+		used += c.Width
+	}
+	leftover := width - used
+	if leftover < 2 {
+		return cols
+	}
+	left := leftover / 2
+	cols[5].Width += left
+	cols[6].Width += leftover - left
+	return cols
 }
 
 func navKeyMap() table.KeyMap {
@@ -186,13 +211,16 @@ func tableStyles() table.Styles {
 	s := table.DefaultStyles()
 	s.Header = lipgloss.NewStyle().Bold(true).Padding(0, 1)
 	s.Cell = lipgloss.NewStyle().Padding(0, 1)
+	// Reverse wraps the joined row. Cells must stay unstyled so a per-cell
+	// reset cannot clear reverse for the rest of the selection.
 	s.Selected = lipgloss.NewStyle().Reverse(true).Bold(true)
 	return s
 }
 
+// ruleRow returns plain cell text. bubbles/v2 table.Styles has no per-row
+// function; action colors are applied to unselected rows in coloredTableView.
 func ruleRow(r iptables.Rule) table.Row {
-	style := rowStyle(r)
-	cells := []string{
+	return table.Row{
 		strconv.Itoa(r.Index),
 		dash(r.Chain),
 		dash(r.Protocol),
@@ -202,10 +230,6 @@ func ruleRow(r iptables.Rule) table.Row {
 		dash(r.Destination),
 		dash(r.Target),
 	}
-	for i, c := range cells {
-		cells[i] = style.Render(c)
-	}
-	return cells
 }
 
 func rowStyle(r iptables.Rule) lipgloss.Style {
