@@ -72,6 +72,23 @@ func TestParseSkipsJunk(t *testing.T) {
 	}
 }
 
+func TestParseSkipsMissingTarget(t *testing.T) {
+	in := "*filter\n:INPUT ACCEPT [0:0]\n-A INPUT -p tcp\n-A INPUT -j ACCEPT\nCOMMIT\n"
+	res, err := Parse(strings.NewReader(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Rules) != 1 {
+		t.Fatalf("rules=%d want 1 warnings=%v", len(res.Rules), res.Warnings)
+	}
+	if res.Rules[0].Target != "ACCEPT" {
+		t.Fatalf("kept %+v", res.Rules[0])
+	}
+	if len(res.Warnings) == 0 {
+		t.Fatal("expected warning for -A with no target")
+	}
+}
+
 func findDport(t *testing.T, rules []Rule, start int) Rule {
 	t.Helper()
 	for _, r := range rules {

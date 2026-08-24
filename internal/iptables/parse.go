@@ -125,6 +125,9 @@ func parseRule(table, line string) (Rule, bool) {
 			extra = append(extra, f)
 		}
 	}
+	if r.Target == "" {
+		return Rule{}, false
+	}
 	if r.Protocol == "" {
 		r.Protocol = "all"
 	}
