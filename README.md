@@ -15,7 +15,7 @@ sort by port — without leaving the terminal.
   INPUT    all    -           0.0.0.0/0       0.0.0.0/0       REJECT
 ```
 
-Status: project scaffold + implementation plan. The TUI is not implemented yet.
+Status: interactive TUI is implemented. Use `--file` for dumps or run live with sudo.
 
 ## Name
 
@@ -41,7 +41,7 @@ your `PATH`:
 export PATH="/usr/local/go/bin:$PATH"
 ```
 
-## Usage (target)
+## Usage
 
 ```bash
 sudo chainpeek                      # live iptables-save
