@@ -417,6 +417,32 @@ func TestReloadDropsMissingChain(t *testing.T) {
 	}
 }
 
+func TestReloadDropsMissingChainKeepsWarnings(t *testing.T) {
+	r := rules()
+	loader := &stubLoader{res: iptables.ParseResult{
+		Rules:  r,
+		Chains: []string{"INPUT", "OUTPUT", "FORWARD", "DOCKER"},
+	}}
+	m := New(loader, r, []string{"INPUT", "OUTPUT", "FORWARD", "DOCKER"}, nil)
+	m.setChain("DOCKER")
+	loader.res = iptables.ParseResult{
+		Rules:    r,
+		Chains:   []string{"INPUT", "OUTPUT", "FORWARD"},
+		Warnings: []string{"skipping malformed rule: -A INPUT", "skipping unexpected line: foo"},
+	}
+	m = press(m, "r")
+	if m.Query().Chain != "" {
+		t.Fatalf("chain=%q", m.Query().Chain)
+	}
+	want := "chain DOCKER gone, showing ALL; skipping malformed rule: -A INPUT; skipping unexpected line: foo"
+	if m.status != want {
+		t.Fatalf("status=%q want %q", m.status, want)
+	}
+	if m.statusErr {
+		t.Fatal("gone chain is not an error")
+	}
+}
+
 func TestReloadKeepsExistingChain(t *testing.T) {
 	r := rules()
 	loader := &stubLoader{res: iptables.ParseResult{Rules: r, Chains: testChains()}}
@@ -448,5 +474,68 @@ func TestChainOverlayScrolls(t *testing.T) {
 	}
 	if !strings.Contains(got, "C29") {
 		t.Fatalf("last chain missing:\n%s", got)
+	}
+}
+
+func TestChainOverlayResizeKeepsHighlightVisible(t *testing.T) {
+	chains := make([]string, 30)
+	for i := range chains {
+		chains[i] = fmt.Sprintf("C%d", i)
+	}
+	r := rules()
+	m := New(stubLoader{}, r, chains, nil)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 50})
+	m = next.(Model)
+	m = press(m, "c")
+	m = press(m, "G")
+	if m.chainOffset != 0 {
+		t.Fatalf("list should fit at height 50, offset=%d", m.chainOffset)
+	}
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	m = next.(Model)
+	got := stripANSI(m.View().Content)
+	if strings.Contains(got, "▸ ALL") {
+		t.Fatalf("shrink left ▸ on ALL:\n%s", got)
+	}
+	if !strings.Contains(got, "▸ C29") {
+		t.Fatalf("last chain highlight missing after shrink:\n%s", got)
+	}
+}
+
+func TestReloadDropsMissingChainResetsOverlay(t *testing.T) {
+	chains := make([]string, 30)
+	for i := range chains {
+		chains[i] = fmt.Sprintf("C%d", i)
+	}
+	r := rules()
+	loader := &stubLoader{res: iptables.ParseResult{Rules: r, Chains: chains}}
+	m := New(loader, r, chains, nil)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	m = next.(Model)
+	m = press(m, "c")
+	m = press(m, "G")
+	if m.chainOffset == 0 {
+		t.Fatal("expected scrolled overlay")
+	}
+	last := chains[len(chains)-1]
+	if m.Query().Chain != last {
+		t.Fatalf("chain=%q", m.Query().Chain)
+	}
+	loader.res = iptables.ParseResult{Rules: r, Chains: []string{"INPUT", "OUTPUT", "FORWARD"}}
+	m = press(m, "r")
+	if m.Query().Chain != "" {
+		t.Fatalf("chain=%q", m.Query().Chain)
+	}
+	if m.chainIndex != 0 {
+		t.Fatalf("index=%d", m.chainIndex)
+	}
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "▸ ALL") {
+		t.Fatalf("overlay should show ▸ ALL:\n%s", got)
+	}
+	gotH := m.table.Height()
+	m.resize()
+	if m.table.Height() != gotH {
+		t.Fatalf("table height=%d after reload, resize wants %d", gotH, m.table.Height())
 	}
 }

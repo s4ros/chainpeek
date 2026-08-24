@@ -120,6 +120,7 @@ func (m *Model) reload() {
 	m.chains = append([]string(nil), res.Chains...)
 	m.statusErr = false
 	prev := m.query.Chain
+	gone := false
 	if prev != "" {
 		found := false
 		for _, c := range m.chains {
@@ -131,18 +132,21 @@ func (m *Model) reload() {
 		if !found {
 			m.query.Chain = ""
 			m.status = "chain " + prev + " gone, showing ALL"
-			m.syncChainIndex()
-			m.recompute()
-			return
+			gone = true
 		}
 	}
-	if len(res.Warnings) > 0 {
+	if gone {
+		if len(res.Warnings) > 0 {
+			m.status += "; " + strings.Join(res.Warnings, "; ")
+		}
+	} else if len(res.Warnings) > 0 {
 		m.status = strings.Join(res.Warnings, "; ")
 	} else {
 		m.status = "reloaded"
 	}
 	m.syncChainIndex()
 	m.recompute()
+	m.resize()
 }
 
 func (m *Model) resize() {
@@ -150,17 +154,19 @@ func (m *Model) resize() {
 		m.table.SetWidth(m.width)
 		m.table.SetColumns(columnsForWidth(m.width))
 	}
-	if m.height <= 0 {
-		return
+	if m.height > 0 {
+		h := m.height - 4
+		if m.chainFocus && !m.showHelp {
+			h -= m.overlayHeight()
+		}
+		if h < 3 {
+			h = 3
+		}
+		m.table.SetHeight(h)
 	}
-	h := m.height - 4
 	if m.chainFocus && !m.showHelp {
-		h -= m.overlayHeight()
+		m.ensureChainVisible()
 	}
-	if h < 3 {
-		h = 3
-	}
-	m.table.SetHeight(h)
 }
 
 func (m Model) overlayItems() []string {
