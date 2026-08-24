@@ -82,17 +82,11 @@ func (m Model) footer() string {
 	return status + "\n" + keymapLine
 }
 
-func chainLabel(c view.ChainFilter) string {
-	switch c {
-	case view.ChainInput:
-		return "INPUT"
-	case view.ChainOutput:
-		return "OUTPUT"
-	case view.ChainForward:
-		return "FORWARD"
-	default:
+func chainLabel(c string) string {
+	if c == "" {
 		return "ALL"
 	}
+	return c
 }
 
 func actionLabel(a view.ActionFilter) string {

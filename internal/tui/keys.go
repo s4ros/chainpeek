@@ -9,16 +9,16 @@ import (
 func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 	switch key {
 	case "1":
-		m.query.Chain = view.ChainAll
+		m.query.Chain = ""
 		m.recompute()
 	case "2":
-		m.query.Chain = view.ChainInput
+		m.query.Chain = "INPUT"
 		m.recompute()
 	case "3":
-		m.query.Chain = view.ChainOutput
+		m.query.Chain = "OUTPUT"
 		m.recompute()
 	case "4":
-		m.query.Chain = view.ChainForward
+		m.query.Chain = "FORWARD"
 		m.recompute()
 	case "a":
 		m.query.Action = view.ActionAllow

@@ -18,7 +18,7 @@ func sample() []iptables.Rule {
 }
 
 func TestApplyChain(t *testing.T) {
-	got := Apply(sample(), Query{Chain: ChainInput})
+	got := Apply(sample(), Query{Chain: "INPUT"})
 	if len(got) != 3 {
 		t.Fatalf("len=%d", len(got))
 	}
@@ -26,6 +26,20 @@ func TestApplyChain(t *testing.T) {
 		if r.Chain != "INPUT" {
 			t.Fatalf("chain %s", r.Chain)
 		}
+	}
+}
+
+func TestApplyChainAllKeepsUserChain(t *testing.T) {
+	got := Apply(sample(), Query{})
+	if len(got) != 6 {
+		t.Fatalf("len=%d want 6 (includes MYCHAIN)", len(got))
+	}
+}
+
+func TestApplyUserChain(t *testing.T) {
+	got := Apply(sample(), Query{Chain: "MYCHAIN"})
+	if len(got) != 1 || got[0].Raw != "f" {
+		t.Fatalf("%+v", got)
 	}
 }
 
@@ -48,7 +62,7 @@ func TestApplyPortSort(t *testing.T) {
 
 func TestApplyDoesNotMutate(t *testing.T) {
 	in := sample()
-	_ = Apply(in, Query{ByPort: true, Chain: ChainInput})
+	_ = Apply(in, Query{ByPort: true, Chain: "INPUT"})
 	if in[0].Raw != "a" || in[1].Raw != "b" {
 		t.Fatal("input mutated")
 	}

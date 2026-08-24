@@ -50,7 +50,7 @@ func TestArrowMovesCursor(t *testing.T) {
 
 func TestChainFilter(t *testing.T) {
 	m := press(newTestModel(), "3")
-	if m.Query().Chain != view.ChainOutput {
+	if m.Query().Chain != "OUTPUT" {
 		t.Fatal(m.Query().Chain)
 	}
 	if len(m.Visible()) != 1 || m.Visible()[0].Chain != "OUTPUT" {

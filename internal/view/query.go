@@ -7,15 +7,6 @@ import (
 	"github.com/s4ros/chainpeek/internal/iptables"
 )
 
-type ChainFilter int
-
-const (
-	ChainAll ChainFilter = iota
-	ChainInput
-	ChainOutput
-	ChainForward
-)
-
 type ActionFilter int
 
 const (
@@ -25,7 +16,7 @@ const (
 )
 
 type Query struct {
-	Chain  ChainFilter
+	Chain  string // "" = all chains; otherwise exact Rule.Chain match
 	Action ActionFilter
 	ByPort bool
 }
@@ -54,17 +45,11 @@ func Apply(rules []iptables.Rule, q Query) []iptables.Rule {
 	return out
 }
 
-func matchChain(r iptables.Rule, f ChainFilter) bool {
-	switch f {
-	case ChainInput:
-		return r.Chain == "INPUT"
-	case ChainOutput:
-		return r.Chain == "OUTPUT"
-	case ChainForward:
-		return r.Chain == "FORWARD"
-	default:
+func matchChain(r iptables.Rule, chain string) bool {
+	if chain == "" {
 		return true
 	}
+	return r.Chain == chain
 }
 
 func matchAction(r iptables.Rule, f ActionFilter) bool {
