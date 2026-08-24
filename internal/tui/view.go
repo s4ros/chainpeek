@@ -75,7 +75,7 @@ func (m Model) header() string {
 		chip = lipgloss.NewStyle().Reverse(true).Bold(true).Render(chip)
 	}
 	return fmt.Sprintf(
-		"chainpeek v%s    filter    %d/%d rules    %s    action:%s    sort:%s",
+		"chainpeek v%s    %d/%d rules    %s    action:%s    sort:%s",
 		version,
 		len(m.visible),
 		len(m.all),

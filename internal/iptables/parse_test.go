@@ -110,7 +110,7 @@ func TestParseTestdataChains(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"INPUT", "FORWARD", "OUTPUT"}
+	want := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "DOCKER-USER", "PREROUTING", "POSTROUTING"}
 	if !equalStrings(res.Chains, want) {
 		t.Fatalf("Chains=%v want %v", res.Chains, want)
 	}
@@ -122,13 +122,15 @@ func TestParseChains(t *testing.T) {
 		":INPUT DROP [0:0]",
 		":FORWARD DROP [0:0]",
 		":OUTPUT ACCEPT [0:0]",
-		":DOCKER ACCEPT [0:0]",
+		":DOCKER - [0:0]",
 		"-A INPUT -j ACCEPT",
 		"-A ORPHAN -j ACCEPT",
 		"COMMIT",
 		"*nat",
 		":PREROUTING ACCEPT [0:0]",
+		":INPUT ACCEPT [0:0]",
 		":POSTROUTING ACCEPT [0:0]",
+		":DOCKER - [0:0]",
 		"-A POSTROUTING -j MASQUERADE",
 		"COMMIT",
 	}, "\n") + "\n"
@@ -136,14 +138,9 @@ func TestParseChains(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "ORPHAN"}
+	want := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "ORPHAN", "PREROUTING", "POSTROUTING"}
 	if !equalStrings(res.Chains, want) {
 		t.Fatalf("Chains=%v want %v", res.Chains, want)
-	}
-	for _, name := range res.Chains {
-		if name == "PREROUTING" || name == "POSTROUTING" {
-			t.Fatalf("nat chain %s leaked into Chains", name)
-		}
 	}
 }
 

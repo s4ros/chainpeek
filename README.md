@@ -60,7 +60,10 @@ chainpeek --file testdata/filter.rules
 | `?` | Help |
 | `q` | Quit |
 
-The chain dropdown lists every `*filter` chain, including user-defined and empty ones. Shortcuts `1`–`4` always jump to ALL / INPUT / OUTPUT / FORWARD.
+The chain dropdown is built from `:NAME` headers in the loaded `iptables-save`
+dump (every table, including user-defined and empty chains such as `DOCKER`).
+Selecting a chain shows that chain's rules from the dump. Shortcuts `1`–`4`
+always jump to ALL / INPUT / OUTPUT / FORWARD.
 
 ALLOW is `ACCEPT`. DENY is `DROP` or `REJECT`.
 

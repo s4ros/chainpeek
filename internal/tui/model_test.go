@@ -128,6 +128,31 @@ func TestNewStoresChains(t *testing.T) {
 	}
 }
 
+func TestOverlayListsDumpChains(t *testing.T) {
+	r := rules()
+	chains := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "DOCKER-USER", "PREROUTING"}
+	m := sized(New(stubLoader{}, r, chains, nil))
+	m = press(m, "c")
+	got := stripANSI(m.View().Content)
+	for _, name := range []string{"DOCKER", "DOCKER-USER", "PREROUTING"} {
+		if !strings.Contains(got, name) {
+			t.Fatalf("%s missing from overlay:\n%s", name, got)
+		}
+	}
+}
+
+func TestSelectDumpChainShowsNatRules(t *testing.T) {
+	r := []iptables.Rule{
+		{Table: "filter", Chain: "INPUT", Index: 1, Target: "ACCEPT", Action: iptables.ActionAllow, Raw: "in"},
+		{Table: "nat", Chain: "DOCKER", Index: 1, Target: "DNAT", Action: iptables.ActionOther, Raw: "docker-dnat"},
+	}
+	m := New(stubLoader{}, r, []string{"INPUT", "DOCKER"}, nil)
+	m.setChain("DOCKER")
+	if len(m.Visible()) != 1 || m.Visible()[0].Raw != "docker-dnat" {
+		t.Fatalf("DOCKER from iptables-save should show nat rules, got %+v", m.Visible())
+	}
+}
+
 func TestQuit(t *testing.T) {
 	_, cmd := newTestModel().Update(tea.KeyPressMsg{Text: "q"})
 	if cmd == nil {

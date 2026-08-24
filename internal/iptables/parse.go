@@ -30,7 +30,7 @@ func Parse(r io.Reader) (ParseResult, error) {
 		case line == "COMMIT":
 			table = ""
 		case strings.HasPrefix(line, ":"):
-			if table == "filter" {
+			if table != "" {
 				rest := strings.TrimPrefix(line, ":")
 				fields := strings.Fields(rest)
 				if len(fields) > 0 {
@@ -43,9 +43,7 @@ func Parse(r io.Reader) (ParseResult, error) {
 				res.Warnings = append(res.Warnings, fmt.Sprintf("skipping malformed rule: %s", line))
 				continue
 			}
-			if table == "filter" {
-				res.Chains = appendChain(res.Chains, rule.Chain)
-			}
+			res.Chains = appendChain(res.Chains, rule.Chain)
 			key := table + "/" + rule.Chain
 			index[key]++
 			rule.Index = index[key]

@@ -37,7 +37,7 @@ type Model struct {
 func New(loader iptables.Loader, rules []iptables.Rule, chains []string, warnings []string) Model {
 	m := Model{
 		loader: loader,
-		all:    iptables.FilterTable(rules),
+		all:    append([]iptables.Rule(nil), rules...),
 		chains: append([]string(nil), chains...),
 	}
 	if len(warnings) > 0 {
@@ -116,7 +116,7 @@ func (m *Model) reload() {
 		m.statusErr = true
 		return
 	}
-	m.all = iptables.FilterTable(res.Rules)
+	m.all = append([]iptables.Rule(nil), res.Rules...)
 	m.chains = append([]string(nil), res.Chains...)
 	m.statusErr = false
 	prev := m.query.Chain
