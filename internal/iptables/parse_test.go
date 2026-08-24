@@ -99,3 +99,62 @@ func findDport(t *testing.T, rules []Rule, start int) Rule {
 	t.Fatalf("no dport %d", start)
 	return Rule{}
 }
+
+func TestParseTestdataChains(t *testing.T) {
+	f, err := os.Open("../../testdata/filter.rules")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	res, err := Parse(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"INPUT", "FORWARD", "OUTPUT"}
+	if !equalStrings(res.Chains, want) {
+		t.Fatalf("Chains=%v want %v", res.Chains, want)
+	}
+}
+
+func TestParseChains(t *testing.T) {
+	in := strings.Join([]string{
+		"*filter",
+		":INPUT DROP [0:0]",
+		":FORWARD DROP [0:0]",
+		":OUTPUT ACCEPT [0:0]",
+		":DOCKER ACCEPT [0:0]",
+		"-A INPUT -j ACCEPT",
+		"-A ORPHAN -j ACCEPT",
+		"COMMIT",
+		"*nat",
+		":PREROUTING ACCEPT [0:0]",
+		":POSTROUTING ACCEPT [0:0]",
+		"-A POSTROUTING -j MASQUERADE",
+		"COMMIT",
+	}, "\n") + "\n"
+	res, err := Parse(strings.NewReader(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "ORPHAN"}
+	if !equalStrings(res.Chains, want) {
+		t.Fatalf("Chains=%v want %v", res.Chains, want)
+	}
+	for _, name := range res.Chains {
+		if name == "PREROUTING" || name == "POSTROUTING" {
+			t.Fatalf("nat chain %s leaked into Chains", name)
+		}
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

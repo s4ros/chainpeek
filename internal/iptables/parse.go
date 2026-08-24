@@ -10,6 +10,7 @@ import (
 
 type ParseResult struct {
 	Rules    []Rule
+	Chains   []string
 	Warnings []string
 }
 
@@ -29,12 +30,21 @@ func Parse(r io.Reader) (ParseResult, error) {
 		case line == "COMMIT":
 			table = ""
 		case strings.HasPrefix(line, ":"):
-			continue
+			if table == "filter" {
+				rest := strings.TrimPrefix(line, ":")
+				fields := strings.Fields(rest)
+				if len(fields) > 0 {
+					res.Chains = appendChain(res.Chains, fields[0])
+				}
+			}
 		case strings.HasPrefix(line, "-A"):
 			rule, ok := parseRule(table, line)
 			if !ok {
 				res.Warnings = append(res.Warnings, fmt.Sprintf("skipping malformed rule: %s", line))
 				continue
+			}
+			if table == "filter" {
+				res.Chains = appendChain(res.Chains, rule.Chain)
 			}
 			key := table + "/" + rule.Chain
 			index[key]++
@@ -160,4 +170,16 @@ func FilterTable(rules []Rule) []Rule {
 		}
 	}
 	return out
+}
+
+func appendChain(dst []string, name string) []string {
+	if name == "" {
+		return dst
+	}
+	for _, c := range dst {
+		if c == name {
+			return dst
+		}
+	}
+	return append(dst, name)
 }
