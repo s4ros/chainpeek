@@ -27,7 +27,7 @@ Keyboard:
   c / tab      Focus / toggle chain dropdown
   1            All chains
   2/3/4        INPUT / OUTPUT / FORWARD
-  a / d / f    ALLOW / DENY / all actions
+  a / d / f    ACCEPT / DENY / all actions
   p            Sort by port
   r            Reload
   ?            Help

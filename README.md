@@ -54,7 +54,7 @@ chainpeek --file testdata/filter.rules
 | `c` / `Tab` | Focus / toggle chain dropdown |
 | `1` | All chains |
 | `2` / `3` / `4` | INPUT / OUTPUT / FORWARD |
-| `a` / `d` / `f` | ALLOW / DENY / all actions |
+| `a` / `d` / `f` | ACCEPT / DENY / all actions |
 | `p` | Toggle sort by destination port |
 | `r` | Reload rules |
 | `?` | Help |
@@ -65,7 +65,7 @@ dump (every table, including user-defined and empty chains such as `DOCKER`).
 Selecting a chain shows that chain's rules from the dump. Shortcuts `1`–`4`
 always jump to ALL / INPUT / OUTPUT / FORWARD.
 
-ALLOW is `ACCEPT`. DENY is `DROP` or `REJECT`.
+ACCEPT is `-j ACCEPT`. DENY is `-j DROP` or `-j REJECT`.
 
 ## Layout
 
@@ -75,13 +75,7 @@ internal/iptables/      Parse iptables-save into typed rules
 internal/view/          Filter (chain, action) and sort (port)
 internal/tui/           Bubble Tea table
 testdata/               Fixture dumps for tests and --file mode
-docs/superpowers/       Design spec and implementation plan
 ```
-
-## Docs
-
-- [Design spec](docs/superpowers/specs/2026-08-24-chainpeek-design.md)
-- [Implementation plan](docs/superpowers/plans/2026-08-24-chainpeek-implementation.md)
 
 ## License
 

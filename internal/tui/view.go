@@ -11,7 +11,7 @@ import (
 	"github.com/s4ros/chainpeek/internal/view"
 )
 
-const keymapLine = "↑/↓ move  c/tab chain  1 all  2 IN  3 OUT  4 FWD  a ALLOW  d DENY  f all  p port  r reload  ? help  q quit"
+const keymapLine = "↑/↓ move  c/tab chain  1 all  2 IN  3 OUT  4 FWD  a ACCEPT  d DENY  f all  p port  r reload  ? help  q quit"
 
 const helpText = `Keys:
   ↑/k  ↓/j     Move selection (table, or chain list when focused)
@@ -23,7 +23,7 @@ const helpText = `Keys:
   enter/esc    Leave chain dropdown (keeps current chain)
   1            All chains
   2/3/4        INPUT / OUTPUT / FORWARD
-  a / d / f    ALLOW / DENY / all actions
+  a / d / f    ACCEPT / DENY / all actions
   p            Toggle sort by port
   r            Reload
   ?            Toggle this help
@@ -49,7 +49,7 @@ func (m Model) View() tea.View {
 	return v
 }
 
-// coloredTableView paints ALLOW/DENY/OTHER on unselected rows only. The
+// coloredTableView paints ACCEPT/DENY/OTHER on unselected rows only. The
 // selected row stays plain so table.Styles.Selected Reverse applies to the
 // whole line. bubbles/v2 table.SetStyles takes a Styles struct, not a function.
 func (m Model) coloredTableView() string {
@@ -106,7 +106,7 @@ func chainLabel(c string) string {
 func actionLabel(a view.ActionFilter) string {
 	switch a {
 	case view.ActionAllow:
-		return "ALLOW"
+		return "ACCEPT"
 	case view.ActionDeny:
 		return "DENY"
 	default:

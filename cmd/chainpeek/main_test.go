@@ -47,3 +47,12 @@ func TestUsageChainDropdown(t *testing.T) {
 		t.Fatal("usage should mention chain dropdown keys")
 	}
 }
+
+func TestUsageActionLabels(t *testing.T) {
+	if strings.Contains(usage, "ALLOW") {
+		t.Fatal("usage must use ACCEPT, not ALLOW")
+	}
+	if !strings.Contains(usage, "ACCEPT / DENY") {
+		t.Fatal("usage should say ACCEPT / DENY")
+	}
+}

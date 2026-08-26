@@ -85,6 +85,41 @@ func TestActionFilter(t *testing.T) {
 	}
 }
 
+func TestActionLabelsMatchIptablesSave(t *testing.T) {
+	m := sized(newTestModel())
+	got := stripANSI(m.View().Content)
+	if strings.Contains(got, "ALLOW") {
+		t.Fatalf("TUI must use ACCEPT, not ALLOW:\n%s", got)
+	}
+	if !strings.Contains(got, "a ACCEPT") {
+		t.Fatalf("keymap should say a ACCEPT:\n%s", got)
+	}
+	if !strings.Contains(got, "d DENY") {
+		t.Fatalf("keymap should say d DENY:\n%s", got)
+	}
+
+	m = press(m, "a")
+	got = stripANSI(m.View().Content)
+	if !strings.Contains(got, "action:ACCEPT") {
+		t.Fatalf("a should show action:ACCEPT:\n%s", got)
+	}
+
+	m = press(m, "d")
+	got = stripANSI(m.View().Content)
+	if !strings.Contains(got, "action:DENY") {
+		t.Fatalf("d should show action:DENY:\n%s", got)
+	}
+
+	m = press(m, "?")
+	got = stripANSI(m.View().Content)
+	if strings.Contains(got, "ALLOW") {
+		t.Fatalf("help must use ACCEPT, not ALLOW:\n%s", got)
+	}
+	if !strings.Contains(got, "ACCEPT / DENY") {
+		t.Fatalf("help should say ACCEPT / DENY:\n%s", got)
+	}
+}
+
 func TestPortSort(t *testing.T) {
 	m := press(newTestModel(), "p")
 	if !m.Query().ByPort {
@@ -270,7 +305,7 @@ func TestUnselectedRowsColoredInView(t *testing.T) {
 	}
 	allow := rowStyle(iptables.Rule{Action: iptables.ActionAllow}).Render("INPUT")
 	if !strings.Contains(got, allow) {
-		t.Fatalf("unselected ALLOW row should be green in View, got:\n%s", got)
+		t.Fatalf("unselected ACCEPT row should be green in View, got:\n%s", got)
 	}
 
 	only := []iptables.Rule{{
