@@ -47,6 +47,7 @@ type Rule struct {
 	Dport       Port
 	Target      string
 	Action      Action
+	Comment     string
 	Extra       string
 	Raw         string
 }

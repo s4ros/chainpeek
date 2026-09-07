@@ -286,6 +286,31 @@ func TestRuleRowPlainNoANSI(t *testing.T) {
 	if !cellEq(row, "255.255.255.255/32") {
 		t.Fatalf("Destination CIDR missing from ruleRow: %v", row)
 	}
+	if row[len(row)-1] != "-" {
+		t.Fatalf("empty comment should render as dash, last cell=%q row=%v", row[len(row)-1], row)
+	}
+}
+
+func TestCommentColumn(t *testing.T) {
+	r := []iptables.Rule{{
+		Table: "filter", Chain: "INPUT", Index: 1, Protocol: "tcp",
+		Dport: iptables.Port{Start: 22}, Source: "10.0.0.0/8", Destination: "0.0.0.0/0",
+		Target: "ACCEPT", Action: iptables.ActionAllow, Comment: "SSH from office", Raw: "ssh",
+	}}
+	row := ruleRow(r[0])
+	if !cellEq(row, "SSH from office") {
+		t.Fatalf("ruleRow missing comment: %v", row)
+	}
+	m := New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: []string{"INPUT"}}}, r, []string{"INPUT"}, nil)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	m = next.(Model)
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "COMMENT") {
+		t.Fatalf("COMMENT header missing:\n%s", got)
+	}
+	if !strings.Contains(got, "SSH from office") {
+		t.Fatalf("comment missing from view:\n%s", got)
+	}
 }
 
 func TestSelectedRowCellsHaveNoANSI(t *testing.T) {
@@ -322,6 +347,21 @@ func TestIPv4CIDRNotTruncated(t *testing.T) {
 	}
 }
 
+func TestCommentShrinksToFitNarrowWidth(t *testing.T) {
+	base := ruleColumns()
+	cols := columnsForWidth(100)
+	if cols[colComment].Width >= base[colComment].Width {
+		t.Fatalf("COMMENT should shrink when the table is wider than the window, base=%d got=%d",
+			base[colComment].Width, cols[colComment].Width)
+	}
+	if cols[colComment].Width < minCommentWidth {
+		t.Fatalf("COMMENT shrank below min %d: %d", minCommentWidth, cols[colComment].Width)
+	}
+	if cols[colSource].Width < minCIDRWidth || cols[colDest].Width < minCIDRWidth {
+		t.Fatal("must not shrink SOURCE/DEST below CIDR min")
+	}
+}
+
 func TestResizeGivesLeftoverToSourceDest(t *testing.T) {
 	m := newTestModel()
 	base := ruleColumns()
@@ -329,9 +369,13 @@ func TestResizeGivesLeftoverToSourceDest(t *testing.T) {
 	wide, _ := m.Update(tea.WindowSizeMsg{Width: 200, Height: 24})
 	m = wide.(Model)
 	cols := m.table.Columns()
-	if cols[5].Width <= base[5].Width || cols[6].Width <= base[6].Width {
+	if cols[colSource].Width <= base[colSource].Width || cols[colDest].Width <= base[colDest].Width {
 		t.Fatalf("leftover width should go to SOURCE/DESTINATION, base=%d/%d got=%d/%d",
-			base[5].Width, base[6].Width, cols[5].Width, cols[6].Width)
+			base[colSource].Width, base[colDest].Width, cols[colSource].Width, cols[colDest].Width)
+	}
+	if cols[colComment].Width <= base[colComment].Width {
+		t.Fatalf("leftover width should also go to COMMENT, base=%d got=%d",
+			base[colComment].Width, cols[colComment].Width)
 	}
 }
 

@@ -317,6 +317,13 @@ func (m Model) chainOverlayView(innerW int) string {
 }
 
 const minCIDRWidth = 18
+const minCommentWidth = 8
+
+const (
+	colSource  = 5
+	colDest    = 6
+	colComment = 8
+)
 
 func ruleColumns() []table.Column {
 	return []table.Column{
@@ -328,6 +335,7 @@ func ruleColumns() []table.Column {
 		{Title: "SOURCE", Width: minCIDRWidth},
 		{Title: "DESTINATION", Width: minCIDRWidth},
 		{Title: "TARGET", Width: 12},
+		{Title: "COMMENT", Width: 16},
 	}
 }
 
@@ -341,12 +349,25 @@ func columnsForWidth(width int) []table.Column {
 		used += c.Width
 	}
 	leftover := width - used
-	if leftover < 2 {
-		return cols
+	switch {
+	case leftover >= 3:
+		share := leftover / 3
+		cols[colSource].Width += share
+		cols[colDest].Width += share
+		cols[colComment].Width += leftover - 2*share
+	case leftover > 0:
+		cols[colComment].Width += leftover
+	case leftover < 0:
+		need := -leftover
+		room := cols[colComment].Width - minCommentWidth
+		if room > 0 {
+			if need < room {
+				cols[colComment].Width -= need
+			} else {
+				cols[colComment].Width = minCommentWidth
+			}
+		}
 	}
-	left := leftover / 2
-	cols[5].Width += left
-	cols[6].Width += leftover - left
 	return cols
 }
 
@@ -409,6 +430,7 @@ func ruleRow(r iptables.Rule) table.Row {
 		dash(r.Source),
 		dash(r.Destination),
 		dash(r.Target),
+		dash(r.Comment),
 	}
 }
 
