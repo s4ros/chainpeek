@@ -27,7 +27,7 @@ Keyboard:
   c / tab      Focus / toggle chain dropdown
   1            All chains
   2/3/4        INPUT / OUTPUT / FORWARD
-  a / d / f    ALLOW / DENY / all actions
+  a / d / f    ACCEPT / DENY / all actions
   p            Sort by port
   r            Reload
   ?            Help
@@ -89,7 +89,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	m := tui.New(loader, iptables.FilterTable(res.Rules), res.Chains, res.Warnings)
+	m := tui.New(loader, res.Rules, res.Chains, res.Warnings)
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

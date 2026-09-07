@@ -30,7 +30,7 @@ func Parse(r io.Reader) (ParseResult, error) {
 		case line == "COMMIT":
 			table = ""
 		case strings.HasPrefix(line, ":"):
-			if table == "filter" {
+			if table != "" {
 				rest := strings.TrimPrefix(line, ":")
 				fields := strings.Fields(rest)
 				if len(fields) > 0 {
@@ -43,9 +43,7 @@ func Parse(r io.Reader) (ParseResult, error) {
 				res.Warnings = append(res.Warnings, fmt.Sprintf("skipping malformed rule: %s", line))
 				continue
 			}
-			if table == "filter" {
-				res.Chains = appendChain(res.Chains, rule.Chain)
-			}
+			res.Chains = appendChain(res.Chains, rule.Chain)
 			key := table + "/" + rule.Chain
 			index[key]++
 			rule.Index = index[key]
@@ -63,7 +61,7 @@ func Parse(r io.Reader) (ParseResult, error) {
 }
 
 func parseRule(table, line string) (Rule, bool) {
-	fields := strings.Fields(line)
+	fields := splitFields(line)
 	if len(fields) < 2 {
 		return Rule{}, false
 	}
@@ -131,6 +129,14 @@ func parseRule(table, line string) (Rule, bool) {
 					extra = append(extra, rest)
 				}
 			}
+		case "--comment":
+			if v, ok := take(); ok {
+				r.Comment = v
+			}
+		case "-m":
+			if v, ok := take(); ok && v != "comment" {
+				extra = append(extra, "-m", v)
+			}
 		default:
 			extra = append(extra, f)
 		}
@@ -150,6 +156,47 @@ func parseRule(table, line string) (Rule, bool) {
 	r.Action = Classify(r.Target)
 	r.Extra = strings.Join(extra, " ")
 	return r, true
+}
+
+// splitFields splits an iptables-save rule on whitespace, keeping
+// double-quoted values (used by --comment) as a single field.
+func splitFields(line string) []string {
+	var fields []string
+	i := 0
+	for i < len(line) {
+		for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+			i++
+		}
+		if i >= len(line) {
+			break
+		}
+		if line[i] == '"' {
+			i++
+			var b strings.Builder
+			for i < len(line) {
+				if line[i] == '\\' && i+1 < len(line) {
+					b.WriteByte(line[i+1])
+					i += 2
+					continue
+				}
+				if line[i] == '"' {
+					i++
+					break
+				}
+				b.WriteByte(line[i])
+				i++
+			}
+			fields = append(fields, b.String())
+			continue
+		}
+		j := i
+		for j < len(line) && line[j] != ' ' && line[j] != '\t' {
+			j++
+		}
+		fields = append(fields, line[i:j])
+		i = j
+	}
+	return fields
 }
 
 func parsePort(v string) Port {

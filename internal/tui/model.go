@@ -37,7 +37,7 @@ type Model struct {
 func New(loader iptables.Loader, rules []iptables.Rule, chains []string, warnings []string) Model {
 	m := Model{
 		loader: loader,
-		all:    iptables.FilterTable(rules),
+		all:    append([]iptables.Rule(nil), rules...),
 		chains: append([]string(nil), chains...),
 	}
 	if len(warnings) > 0 {
@@ -116,7 +116,7 @@ func (m *Model) reload() {
 		m.statusErr = true
 		return
 	}
-	m.all = iptables.FilterTable(res.Rules)
+	m.all = append([]iptables.Rule(nil), res.Rules...)
 	m.chains = append([]string(nil), res.Chains...)
 	m.statusErr = false
 	prev := m.query.Chain
@@ -151,16 +151,17 @@ func (m *Model) reload() {
 
 func (m *Model) resize() {
 	if m.width > 0 {
-		m.table.SetWidth(m.width)
-		m.table.SetColumns(columnsForWidth(m.width))
+		inner := m.innerWidth()
+		m.table.SetWidth(inner)
+		m.table.SetColumns(columnsForWidth(inner))
 	}
 	if m.height > 0 {
-		h := m.height - 4
+		h := m.height - chromeBase - chromeTableRule
 		if m.chainFocus && !m.showHelp {
-			h -= m.overlayHeight()
+			h -= m.overlayHeight() + overlayRule
 		}
-		if h < 3 {
-			h = 3
+		if h < minTableHeight {
+			h = minTableHeight
 		}
 		m.table.SetHeight(h)
 	}
@@ -202,7 +203,7 @@ func (m *Model) overlayHeight() int {
 	if m.height <= 0 {
 		return n
 	}
-	capH := m.height - 7 // header, footer, 3 table rows
+	capH := m.height - chromeBase - chromeTableRule - overlayRule - minTableHeight
 	if capH < 1 {
 		capH = 1
 	}
@@ -281,7 +282,7 @@ func overlayLabel(name string) string {
 	return name
 }
 
-func (m Model) chainOverlayView() string {
+func (m Model) chainOverlayView(innerW int) string {
 	items := m.overlayItems()
 	h := m.overlayHeight()
 	start := m.chainOffset
@@ -301,8 +302,13 @@ func (m Model) chainOverlayView() string {
 		if i == m.chainIndex {
 			prefix = "▸ "
 		}
-		b.WriteString(prefix)
-		b.WriteString(overlayLabel(items[i]))
+		line := " " + prefix + overlayLabel(items[i])
+		if i == m.chainIndex {
+			line = chipOnStyle.Render(padInner(line, innerW))
+		} else {
+			line = metaStyle.Render(line)
+		}
+		b.WriteString(line)
 		if i+1 < end {
 			b.WriteByte('\n')
 		}
@@ -311,6 +317,13 @@ func (m Model) chainOverlayView() string {
 }
 
 const minCIDRWidth = 18
+const minCommentWidth = 8
+
+const (
+	colSource  = 5
+	colDest    = 6
+	colComment = 8
+)
 
 func ruleColumns() []table.Column {
 	return []table.Column{
@@ -322,6 +335,7 @@ func ruleColumns() []table.Column {
 		{Title: "SOURCE", Width: minCIDRWidth},
 		{Title: "DESTINATION", Width: minCIDRWidth},
 		{Title: "TARGET", Width: 12},
+		{Title: "COMMENT", Width: 16},
 	}
 }
 
@@ -335,12 +349,25 @@ func columnsForWidth(width int) []table.Column {
 		used += c.Width
 	}
 	leftover := width - used
-	if leftover < 2 {
-		return cols
+	switch {
+	case leftover >= 3:
+		share := leftover / 3
+		cols[colSource].Width += share
+		cols[colDest].Width += share
+		cols[colComment].Width += leftover - 2*share
+	case leftover > 0:
+		cols[colComment].Width += leftover
+	case leftover < 0:
+		need := -leftover
+		room := cols[colComment].Width - minCommentWidth
+		if room > 0 {
+			if need < room {
+				cols[colComment].Width -= need
+			} else {
+				cols[colComment].Width = minCommentWidth
+			}
+		}
 	}
-	left := leftover / 2
-	cols[5].Width += left
-	cols[6].Width += leftover - left
 	return cols
 }
 
@@ -383,7 +410,7 @@ func navKeyMap() table.KeyMap {
 
 func tableStyles() table.Styles {
 	s := table.DefaultStyles()
-	s.Header = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	s.Header = headerStyle
 	s.Cell = lipgloss.NewStyle().Padding(0, 1)
 	// Reverse wraps the joined row. Cells must stay unstyled so a per-cell
 	// reset cannot clear reverse for the rest of the selection.
@@ -403,6 +430,7 @@ func ruleRow(r iptables.Rule) table.Row {
 		dash(r.Source),
 		dash(r.Destination),
 		dash(r.Target),
+		dash(r.Comment),
 	}
 }
 

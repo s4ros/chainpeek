@@ -23,7 +23,7 @@ func TestParseTestdata(t *testing.T) {
 	}
 
 	ssh := filter[3]
-	if ssh.Chain != "INPUT" || ssh.Index != 4 || ssh.Dport.Start != 22 || ssh.Source != "10.0.0.0/8" || ssh.Action != ActionAllow {
+	if ssh.Chain != "INPUT" || ssh.Index != 4 || ssh.Dport.Start != 22 || ssh.Source != "10.0.0.0/8" || ssh.Action != ActionAllow || ssh.Comment != "SSH from office" {
 		t.Fatalf("ssh rule: %+v", ssh)
 	}
 
@@ -89,6 +89,48 @@ func TestParseSkipsMissingTarget(t *testing.T) {
 	}
 }
 
+func TestParseComment(t *testing.T) {
+	in := strings.Join([]string{
+		"*filter",
+		":INPUT ACCEPT [0:0]",
+		`-A INPUT -p tcp --dport 22 -m comment --comment "SSH from office" -j ACCEPT`,
+		`-A INPUT -p tcp --dport 80 -m comment --comment http -j ACCEPT`,
+		`-A INPUT -m comment --comment "say \"hi\"" -j ACCEPT`,
+		`-A INPUT -j ACCEPT`,
+		"COMMIT",
+	}, "\n") + "\n"
+	res, err := Parse(strings.NewReader(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Rules) != 4 {
+		t.Fatalf("rules=%d warnings=%v", len(res.Rules), res.Warnings)
+	}
+	if res.Rules[0].Comment != "SSH from office" {
+		t.Fatalf("quoted comment=%q", res.Rules[0].Comment)
+	}
+	if strings.Contains(res.Rules[0].Extra, "comment") || strings.Contains(res.Rules[0].Extra, "SSH") {
+		t.Fatalf("comment leaked into Extra: %q", res.Rules[0].Extra)
+	}
+	if res.Rules[1].Comment != "http" {
+		t.Fatalf("bare comment=%q", res.Rules[1].Comment)
+	}
+	if res.Rules[2].Comment != `say "hi"` {
+		t.Fatalf("escaped comment=%q", res.Rules[2].Comment)
+	}
+	if res.Rules[3].Comment != "" {
+		t.Fatalf("missing comment should be empty, got %q", res.Rules[3].Comment)
+	}
+}
+
+func TestSplitFields(t *testing.T) {
+	got := splitFields(`-A INPUT --comment "SSH from office" -j ACCEPT`)
+	want := []string{"-A", "INPUT", "--comment", "SSH from office", "-j", "ACCEPT"}
+	if !equalStrings(got, want) {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
 func findDport(t *testing.T, rules []Rule, start int) Rule {
 	t.Helper()
 	for _, r := range rules {
@@ -110,7 +152,7 @@ func TestParseTestdataChains(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"INPUT", "FORWARD", "OUTPUT"}
+	want := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "DOCKER-USER", "PREROUTING", "POSTROUTING"}
 	if !equalStrings(res.Chains, want) {
 		t.Fatalf("Chains=%v want %v", res.Chains, want)
 	}
@@ -122,13 +164,15 @@ func TestParseChains(t *testing.T) {
 		":INPUT DROP [0:0]",
 		":FORWARD DROP [0:0]",
 		":OUTPUT ACCEPT [0:0]",
-		":DOCKER ACCEPT [0:0]",
+		":DOCKER - [0:0]",
 		"-A INPUT -j ACCEPT",
 		"-A ORPHAN -j ACCEPT",
 		"COMMIT",
 		"*nat",
 		":PREROUTING ACCEPT [0:0]",
+		":INPUT ACCEPT [0:0]",
 		":POSTROUTING ACCEPT [0:0]",
+		":DOCKER - [0:0]",
 		"-A POSTROUTING -j MASQUERADE",
 		"COMMIT",
 	}, "\n") + "\n"
@@ -136,14 +180,9 @@ func TestParseChains(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "ORPHAN"}
+	want := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "ORPHAN", "PREROUTING", "POSTROUTING"}
 	if !equalStrings(res.Chains, want) {
 		t.Fatalf("Chains=%v want %v", res.Chains, want)
-	}
-	for _, name := range res.Chains {
-		if name == "PREROUTING" || name == "POSTROUTING" {
-			t.Fatalf("nat chain %s leaked into Chains", name)
-		}
 	}
 }
 
