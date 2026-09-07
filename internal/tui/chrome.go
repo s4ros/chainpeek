@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/s4ros/chainpeek/internal/iptables"
 )
 
 // Vertical chrome consumed by the framed layout (not the table itself).
@@ -73,6 +75,50 @@ func (m Model) chipsLine() string {
 		chain = chipOnStyle.Render(chain)
 	}
 	return chain + sep + "action:" + actionLabel(m.query.Action) + sep + "sort:" + sortLabel(m.query.ByPort)
+}
+
+var policyStripChains = []string{"INPUT", "FORWARD", "OUTPUT"}
+
+func (m Model) policyLine() string {
+	sep := sepStyle.Render("  ·  ")
+	var parts []string
+	for _, name := range policyStripChains {
+		p, ok := m.filterPolicy(name)
+		if !ok {
+			continue
+		}
+		parts = append(parts, name+" "+policyStyle(p).Render(p))
+	}
+	return strings.Join(parts, sep)
+}
+
+func (m Model) filterPolicy(chain string) (string, bool) {
+	for _, p := range m.policies {
+		if p.Table == "filter" && p.Chain == chain && p.Policy != "" && p.Policy != "-" {
+			return p.Policy, true
+		}
+	}
+	return "", false
+}
+
+func (m Model) policyChrome() int {
+	for _, name := range policyStripChains {
+		if _, ok := m.filterPolicy(name); ok {
+			return 1
+		}
+	}
+	return 0
+}
+
+func policyStyle(policy string) lipgloss.Style {
+	switch iptables.Classify(policy) {
+	case iptables.ActionAllow:
+		return okStyle
+	case iptables.ActionDeny:
+		return errStyle
+	default:
+		return metaStyle
+	}
 }
 
 func topBar(width int, left, right string) string {

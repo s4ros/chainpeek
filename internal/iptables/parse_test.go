@@ -142,6 +142,63 @@ func findDport(t *testing.T, rules []Rule, start int) Rule {
 	return Rule{}
 }
 
+func TestParseTestdataPolicies(t *testing.T) {
+	f, err := os.Open("../../testdata/filter.rules")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	res, err := Parse(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ChainPolicy{
+		{Table: "filter", Chain: "INPUT", Policy: "DROP"},
+		{Table: "filter", Chain: "FORWARD", Policy: "DROP"},
+		{Table: "filter", Chain: "OUTPUT", Policy: "ACCEPT"},
+		{Table: "filter", Chain: "DOCKER", Policy: "-"},
+		{Table: "filter", Chain: "DOCKER-USER", Policy: "-"},
+		{Table: "nat", Chain: "PREROUTING", Policy: "ACCEPT"},
+		{Table: "nat", Chain: "INPUT", Policy: "ACCEPT"},
+		{Table: "nat", Chain: "OUTPUT", Policy: "ACCEPT"},
+		{Table: "nat", Chain: "POSTROUTING", Policy: "ACCEPT"},
+	}
+	if !equalPolicies(res.Policies, want) {
+		t.Fatalf("Policies=%v want %v", res.Policies, want)
+	}
+}
+
+func TestParsePoliciesKeepTable(t *testing.T) {
+	in := strings.Join([]string{
+		"*filter",
+		":INPUT DROP [0:0]",
+		":FORWARD DROP [0:0]",
+		":OUTPUT ACCEPT [0:0]",
+		":DOCKER - [0:0]",
+		"-A INPUT -j ACCEPT",
+		"COMMIT",
+		"*nat",
+		":PREROUTING ACCEPT [0:0]",
+		":INPUT ACCEPT [0:0]",
+		":OUTPUT ACCEPT [0:0]",
+		":POSTROUTING ACCEPT [0:0]",
+		"-A POSTROUTING -j MASQUERADE",
+		"COMMIT",
+	}, "\n") + "\n"
+	res, err := Parse(strings.NewReader(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	filterINPUT := findPolicy(res.Policies, "filter", "INPUT")
+	if filterINPUT.Policy != "DROP" {
+		t.Fatalf("filter INPUT policy=%q want DROP", filterINPUT.Policy)
+	}
+	natINPUT := findPolicy(res.Policies, "nat", "INPUT")
+	if natINPUT.Policy != "ACCEPT" {
+		t.Fatalf("nat INPUT policy=%q want ACCEPT (must not overwrite filter)", natINPUT.Policy)
+	}
+}
+
 func TestParseTestdataChains(t *testing.T) {
 	f, err := os.Open("../../testdata/filter.rules")
 	if err != nil {
@@ -196,4 +253,25 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func equalPolicies(a, b []ChainPolicy) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func findPolicy(policies []ChainPolicy, table, chain string) ChainPolicy {
+	for _, p := range policies {
+		if p.Table == table && p.Chain == chain {
+			return p
+		}
+	}
+	return ChainPolicy{}
 }
