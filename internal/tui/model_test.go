@@ -29,9 +29,18 @@ func testChains() []string {
 	return []string{"INPUT", "OUTPUT", "FORWARD"}
 }
 
+func testPolicies() []iptables.ChainPolicy {
+	return []iptables.ChainPolicy{
+		{Table: "filter", Chain: "INPUT", Policy: "DROP"},
+		{Table: "filter", Chain: "FORWARD", Policy: "DROP"},
+		{Table: "filter", Chain: "OUTPUT", Policy: "ACCEPT"},
+	}
+}
+
 func newTestModel() Model {
 	r := rules()
-	return New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: testChains()}}, r, testChains(), nil)
+	res := iptables.ParseResult{Rules: r, Chains: testChains(), Policies: testPolicies()}
+	return New(stubLoader{res: res}, res)
 }
 
 func equalStr(a, b []string) bool {
@@ -134,7 +143,8 @@ func TestPortSort(t *testing.T) {
 func TestInitialWarningsInView(t *testing.T) {
 	r := rules()
 	warn := []string{"skipping malformed rule: -A INPUT", "skipping unexpected line: foo"}
-	m := sized(New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: testChains()}}, r, testChains(), warn))
+	res := iptables.ParseResult{Rules: r, Chains: testChains(), Policies: testPolicies(), Warnings: warn}
+	m := sized(New(stubLoader{res: res}, res))
 	got := m.View().Content
 	if !strings.Contains(got, "skipping malformed rule: -A INPUT") {
 		t.Fatalf("initial warnings missing from View:\n%s", got)
@@ -161,7 +171,7 @@ func TestFrameChrome(t *testing.T) {
 	m := sized(newTestModel())
 	raw := m.View().Content
 	got := stripANSI(raw)
-	for _, tok := range []string{"╭", "╰", "│", "chainpeek", "4/4 rules", "chain:ALL ▾", "action:ALL", "sort:CHAIN"} {
+	for _, tok := range []string{"╭", "╰", "│", "chainpeek", "4/4 rules", "chain:ALL ▾", "action:ALL", "sort:CHAIN", "INPUT DROP  ·  FORWARD DROP  ·  OUTPUT ACCEPT"} {
 		if !strings.Contains(got, tok) {
 			t.Fatalf("%q missing from framed view:\n%s", tok, got)
 		}
@@ -219,7 +229,7 @@ func TestNewStoresChains(t *testing.T) {
 func TestOverlayListsDumpChains(t *testing.T) {
 	r := rules()
 	chains := []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "DOCKER-USER", "PREROUTING"}
-	m := sized(New(stubLoader{}, r, chains, nil))
+	m := sized(New(stubLoader{}, iptables.ParseResult{Rules: r, Chains: chains}))
 	m = press(m, "c")
 	got := stripANSI(m.View().Content)
 	for _, name := range []string{"DOCKER", "DOCKER-USER", "PREROUTING"} {
@@ -234,7 +244,7 @@ func TestSelectDumpChainShowsNatRules(t *testing.T) {
 		{Table: "filter", Chain: "INPUT", Index: 1, Target: "ACCEPT", Action: iptables.ActionAllow, Raw: "in"},
 		{Table: "nat", Chain: "DOCKER", Index: 1, Target: "DNAT", Action: iptables.ActionOther, Raw: "docker-dnat"},
 	}
-	m := New(stubLoader{}, r, []string{"INPUT", "DOCKER"}, nil)
+	m := New(stubLoader{}, iptables.ParseResult{Rules: r, Chains: []string{"INPUT", "DOCKER"}})
 	m.setChain("DOCKER")
 	if len(m.Visible()) != 1 || m.Visible()[0].Raw != "docker-dnat" {
 		t.Fatalf("DOCKER from iptables-save should show nat rules, got %+v", m.Visible())
@@ -301,7 +311,8 @@ func TestCommentColumn(t *testing.T) {
 	if !cellEq(row, "SSH from office") {
 		t.Fatalf("ruleRow missing comment: %v", row)
 	}
-	m := New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: []string{"INPUT"}}}, r, []string{"INPUT"}, nil)
+	res := iptables.ParseResult{Rules: r, Chains: []string{"INPUT"}}
+	m := New(stubLoader{res: res}, res)
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
 	m = next.(Model)
 	got := stripANSI(m.View().Content)
@@ -332,7 +343,8 @@ func TestIPv4CIDRNotTruncated(t *testing.T) {
 		Source: cidr, Destination: cidr, Target: "ACCEPT",
 		Action: iptables.ActionAllow, Raw: "cidr-row",
 	}}
-	m := sized(New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: []string{"INPUT"}}}, r, []string{"INPUT"}, nil))
+	res := iptables.ParseResult{Rules: r, Chains: []string{"INPUT"}}
+	m := sized(New(stubLoader{res: res}, res))
 	row := ruleRow(r[0])
 	if !cellEq(row, cidr) {
 		t.Fatalf("ruleRow missing full CIDR: %v", row)
@@ -409,7 +421,8 @@ func TestUnselectedRowsColoredInView(t *testing.T) {
 		Table: "filter", Chain: "INPUT", Index: 1, Target: "DROP",
 		Action: iptables.ActionDeny, Raw: "only-deny",
 	}}
-	sel := sized(New(stubLoader{res: iptables.ParseResult{Rules: only, Chains: []string{"INPUT"}}}, only, []string{"INPUT"}, nil))
+	selRes := iptables.ParseResult{Rules: only, Chains: []string{"INPUT"}}
+	sel := sized(New(stubLoader{res: selRes}, selRes))
 	red := rowStyle(only[0]).Render("INPUT")
 	if strings.Contains(sel.View().Content, red) {
 		t.Fatal("selected row must stay unstyled so Reverse applies to the whole line")
@@ -527,7 +540,8 @@ func TestMissingBuiltinHasNoOverlayCursor(t *testing.T) {
 		Table: "filter", Chain: "CUSTOM", Index: 1, Target: "ACCEPT",
 		Action: iptables.ActionAllow, Raw: "custom",
 	}}
-	m := New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: []string{"CUSTOM"}}}, r, []string{"CUSTOM"}, nil)
+	res := iptables.ParseResult{Rules: r, Chains: []string{"CUSTOM"}}
+	m := New(stubLoader{res: res}, res)
 	m = press(m, "2")
 	if m.Query().Chain != "INPUT" {
 		t.Fatal(m.Query().Chain)
@@ -565,7 +579,7 @@ func TestReloadDropsMissingChain(t *testing.T) {
 		Rules:  r,
 		Chains: []string{"INPUT", "OUTPUT", "FORWARD", "DOCKER"},
 	}}
-	m := New(loader, r, []string{"INPUT", "OUTPUT", "FORWARD", "DOCKER"}, nil)
+	m := New(loader, loader.res)
 	m.setChain("DOCKER")
 	if m.Query().Chain != "DOCKER" {
 		t.Fatal(m.Query().Chain)
@@ -592,7 +606,7 @@ func TestReloadDropsMissingChainKeepsWarnings(t *testing.T) {
 		Rules:  r,
 		Chains: []string{"INPUT", "OUTPUT", "FORWARD", "DOCKER"},
 	}}
-	m := New(loader, r, []string{"INPUT", "OUTPUT", "FORWARD", "DOCKER"}, nil)
+	m := New(loader, loader.res)
 	m.setChain("DOCKER")
 	loader.res = iptables.ParseResult{
 		Rules:    r,
@@ -615,7 +629,7 @@ func TestReloadDropsMissingChainKeepsWarnings(t *testing.T) {
 func TestReloadKeepsExistingChain(t *testing.T) {
 	r := rules()
 	loader := &stubLoader{res: iptables.ParseResult{Rules: r, Chains: testChains()}}
-	m := New(loader, r, testChains(), nil)
+	m := New(loader, loader.res)
 	m.setChain("OUTPUT")
 	m = press(m, "r")
 	if m.Query().Chain != "OUTPUT" {
@@ -632,7 +646,7 @@ func TestChainOverlayScrolls(t *testing.T) {
 		chains[i] = fmt.Sprintf("C%d", i)
 	}
 	r := rules()
-	m := New(stubLoader{}, r, chains, nil)
+	m := New(stubLoader{}, iptables.ParseResult{Rules: r, Chains: chains})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	m = next.(Model)
 	m = press(m, "c")
@@ -652,7 +666,7 @@ func TestChainOverlayResizeKeepsHighlightVisible(t *testing.T) {
 		chains[i] = fmt.Sprintf("C%d", i)
 	}
 	r := rules()
-	m := New(stubLoader{}, r, chains, nil)
+	m := New(stubLoader{}, iptables.ParseResult{Rules: r, Chains: chains})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 50})
 	m = next.(Model)
 	m = press(m, "c")
@@ -678,7 +692,7 @@ func TestReloadDropsMissingChainResetsOverlay(t *testing.T) {
 	}
 	r := rules()
 	loader := &stubLoader{res: iptables.ParseResult{Rules: r, Chains: chains}}
-	m := New(loader, r, chains, nil)
+	m := New(loader, loader.res)
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	m = next.(Model)
 	m = press(m, "c")
@@ -706,5 +720,83 @@ func TestReloadDropsMissingChainResetsOverlay(t *testing.T) {
 	m.resize()
 	if m.table.Height() != gotH {
 		t.Fatalf("table height=%d after reload, resize wants %d", gotH, m.table.Height())
+	}
+}
+
+func TestPolicyStripShowsFilterBuiltins(t *testing.T) {
+	m := sized(newTestModel())
+	got := stripANSI(m.View().Content)
+	want := "INPUT DROP  ·  FORWARD DROP  ·  OUTPUT ACCEPT"
+	if !strings.Contains(got, want) {
+		t.Fatalf("policy strip missing:\n%s", got)
+	}
+}
+
+func TestPolicyStripIgnoresNatAndUserDefined(t *testing.T) {
+	r := rules()
+	res := iptables.ParseResult{
+		Rules:  r,
+		Chains: []string{"INPUT", "FORWARD", "OUTPUT", "DOCKER", "PREROUTING"},
+		Policies: []iptables.ChainPolicy{
+			{Table: "filter", Chain: "INPUT", Policy: "DROP"},
+			{Table: "filter", Chain: "FORWARD", Policy: "DROP"},
+			{Table: "filter", Chain: "OUTPUT", Policy: "ACCEPT"},
+			{Table: "filter", Chain: "DOCKER", Policy: "-"},
+			{Table: "nat", Chain: "PREROUTING", Policy: "ACCEPT"},
+			{Table: "nat", Chain: "INPUT", Policy: "ACCEPT"},
+		},
+	}
+	m := sized(New(stubLoader{res: res}, res))
+	got := stripANSI(m.View().Content)
+	if strings.Contains(got, "DOCKER -") {
+		t.Fatalf("user-defined chain leaked into policy strip:\n%s", got)
+	}
+	if strings.Contains(got, "PREROUTING") {
+		t.Fatalf("nat chain leaked into policy strip:\n%s", got)
+	}
+	if strings.Contains(got, "INPUT ACCEPT") {
+		t.Fatalf("nat INPUT must not replace filter INPUT on the strip:\n%s", got)
+	}
+	if !strings.Contains(got, "INPUT DROP  ·  FORWARD DROP  ·  OUTPUT ACCEPT") {
+		t.Fatalf("filter built-in strip missing:\n%s", got)
+	}
+}
+
+func TestPolicyStripOmitsWhenEmpty(t *testing.T) {
+	r := rules()
+	res := iptables.ParseResult{Rules: r, Chains: testChains()}
+	m := sized(New(stubLoader{res: res}, res))
+	got := stripANSI(m.View().Content)
+	if strings.Contains(got, "INPUT DROP  ·  FORWARD DROP") {
+		t.Fatalf("no policies should omit the strip:\n%s", got)
+	}
+}
+
+func TestPolicyStripShrinksTable(t *testing.T) {
+	r := rules()
+	without := sized(New(stubLoader{}, iptables.ParseResult{Rules: r, Chains: testChains()}))
+	with := sized(New(stubLoader{}, iptables.ParseResult{Rules: r, Chains: testChains(), Policies: testPolicies()}))
+	if with.table.Height() != without.table.Height()-1 {
+		t.Fatalf("policy strip should take 1 row from table, with=%d without=%d", with.table.Height(), without.table.Height())
+	}
+}
+
+func TestReloadUpdatesPolicyStrip(t *testing.T) {
+	r := rules()
+	loader := &stubLoader{res: iptables.ParseResult{Rules: r, Chains: testChains(), Policies: testPolicies()}}
+	m := sized(New(loader, loader.res))
+	loader.res = iptables.ParseResult{
+		Rules:  r,
+		Chains: testChains(),
+		Policies: []iptables.ChainPolicy{
+			{Table: "filter", Chain: "INPUT", Policy: "ACCEPT"},
+			{Table: "filter", Chain: "FORWARD", Policy: "DROP"},
+			{Table: "filter", Chain: "OUTPUT", Policy: "ACCEPT"},
+		},
+	}
+	m = press(m, "r")
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "INPUT ACCEPT  ·  FORWARD DROP  ·  OUTPUT ACCEPT") {
+		t.Fatalf("reload should refresh policy strip:\n%s", got)
 	}
 }

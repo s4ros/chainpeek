@@ -8,9 +8,16 @@ import (
 	"strings"
 )
 
+type ChainPolicy struct {
+	Table  string
+	Chain  string
+	Policy string
+}
+
 type ParseResult struct {
 	Rules    []Rule
 	Chains   []string
+	Policies []ChainPolicy
 	Warnings []string
 }
 
@@ -35,6 +42,11 @@ func Parse(r io.Reader) (ParseResult, error) {
 				fields := strings.Fields(rest)
 				if len(fields) > 0 {
 					res.Chains = appendChain(res.Chains, fields[0])
+					p := ChainPolicy{Table: table, Chain: fields[0]}
+					if len(fields) > 1 {
+						p.Policy = fields[1]
+					}
+					res.Policies = append(res.Policies, p)
 				}
 			}
 		case strings.HasPrefix(line, "-A"):

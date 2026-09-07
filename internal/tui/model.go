@@ -20,6 +20,7 @@ type Model struct {
 	loader      iptables.Loader
 	all         []iptables.Rule
 	chains      []string
+	policies    []iptables.ChainPolicy
 	chainFocus  bool
 	chainIndex  int
 	chainOffset int
@@ -34,14 +35,15 @@ type Model struct {
 	showHelp    bool
 }
 
-func New(loader iptables.Loader, rules []iptables.Rule, chains []string, warnings []string) Model {
+func New(loader iptables.Loader, res iptables.ParseResult) Model {
 	m := Model{
-		loader: loader,
-		all:    append([]iptables.Rule(nil), rules...),
-		chains: append([]string(nil), chains...),
+		loader:   loader,
+		all:      append([]iptables.Rule(nil), res.Rules...),
+		chains:   append([]string(nil), res.Chains...),
+		policies: append([]iptables.ChainPolicy(nil), res.Policies...),
 	}
-	if len(warnings) > 0 {
-		m.status = strings.Join(warnings, "; ")
+	if len(res.Warnings) > 0 {
+		m.status = strings.Join(res.Warnings, "; ")
 	}
 	m.table = table.New(
 		table.WithColumns(ruleColumns()),
@@ -118,6 +120,7 @@ func (m *Model) reload() {
 	}
 	m.all = append([]iptables.Rule(nil), res.Rules...)
 	m.chains = append([]string(nil), res.Chains...)
+	m.policies = append([]iptables.ChainPolicy(nil), res.Policies...)
 	m.statusErr = false
 	prev := m.query.Chain
 	gone := false
@@ -156,7 +159,7 @@ func (m *Model) resize() {
 		m.table.SetColumns(columnsForWidth(inner))
 	}
 	if m.height > 0 {
-		h := m.height - chromeBase - chromeTableRule
+		h := m.height - chromeBase - chromeTableRule - m.policyChrome()
 		if m.chainFocus && !m.showHelp {
 			h -= m.overlayHeight() + overlayRule
 		}
@@ -203,7 +206,7 @@ func (m *Model) overlayHeight() int {
 	if m.height <= 0 {
 		return n
 	}
-	capH := m.height - chromeBase - chromeTableRule - overlayRule - minTableHeight
+	capH := m.height - chromeBase - chromeTableRule - overlayRule - minTableHeight - m.policyChrome()
 	if capH < 1 {
 		capH = 1
 	}

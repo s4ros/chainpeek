@@ -35,6 +35,10 @@ func (m Model) View() tea.View {
 	b.WriteString(topBar(w, m.titleLeft(), m.titleRight()))
 	b.WriteByte('\n')
 	b.WriteString(boxLines(padLeft(m.chipsLine()), inner))
+	if policy := m.policyLine(); policy != "" {
+		b.WriteByte('\n')
+		b.WriteString(boxLines(padLeft(policy), inner))
+	}
 
 	if m.showHelp {
 		b.WriteByte('\n')
