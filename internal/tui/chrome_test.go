@@ -8,7 +8,7 @@ import (
 )
 
 func TestFramedRuleFitsWidth(t *testing.T) {
-	left := titleStyle.Render("chainpeek") + metaStyle.Render("  v0.1.0-dev")
+	left := titleStyle.Render("chainpeek") + metaStyle.Render("  v"+version)
 	right := metaStyle.Render("4/4 rules")
 	for _, w := range []int{2, 8, 20, 40, 80, 120, 200} {
 		got := topBar(w, left, right)

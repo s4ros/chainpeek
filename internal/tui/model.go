@@ -14,7 +14,7 @@ import (
 	"github.com/s4ros/chainpeek/internal/view"
 )
 
-const version = "0.1.0-dev"
+const version = "1.0.0"
 
 type Model struct {
 	loader      iptables.Loader

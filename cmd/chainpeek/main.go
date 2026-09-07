@@ -10,7 +10,7 @@ import (
 	"github.com/s4ros/chainpeek/internal/tui"
 )
 
-const version = "0.1.0-dev"
+const version = "1.0.0"
 
 const usage = `chainpeek — interactive TUI for iptables rules
 
