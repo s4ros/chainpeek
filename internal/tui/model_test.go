@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/s4ros/chainpeek/internal/iptables"
 	"github.com/s4ros/chainpeek/internal/view"
@@ -156,6 +157,58 @@ func TestHeaderChainChip(t *testing.T) {
 	}
 }
 
+func TestFrameChrome(t *testing.T) {
+	m := sized(newTestModel())
+	raw := m.View().Content
+	got := stripANSI(raw)
+	for _, tok := range []string{"╭", "╰", "│", "chainpeek", "4/4 rules", "chain:ALL ▾", "action:ALL", "sort:CHAIN"} {
+		if !strings.Contains(got, tok) {
+			t.Fatalf("%q missing from framed view:\n%s", tok, got)
+		}
+	}
+	if strings.Contains(got, "├─ chain") {
+		t.Fatalf("chain section should be hidden until overlay focus:\n%s", got)
+	}
+	for _, line := range strings.Split(strings.TrimRight(raw, "\n"), "\n") {
+		plain := stripANSI(line)
+		if plain == "" {
+			continue
+		}
+		r := []rune(plain)[0]
+		switch r {
+		case '╭', '╰', '│', '├':
+			if n := lipgloss.Width(line); n != 120 {
+				t.Fatalf("frame line width %d want 120: %q", n, plain)
+			}
+		}
+	}
+}
+
+func TestOverlaySectionTitle(t *testing.T) {
+	m := sized(press(newTestModel(), "c"))
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "├─ chain") {
+		t.Fatalf("focused overlay should have titled separator:\n%s", got)
+	}
+	if !strings.Contains(got, "▸ ALL") {
+		t.Fatalf("overlay cursor missing:\n%s", got)
+	}
+}
+
+func TestHelpFramed(t *testing.T) {
+	m := sized(press(newTestModel(), "?"))
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "help") {
+		t.Fatalf("help title missing:\n%s", got)
+	}
+	if !strings.Contains(got, "╭") || !strings.Contains(got, "Focus chain dropdown") {
+		t.Fatalf("help should stay inside the frame:\n%s", got)
+	}
+	if strings.Contains(got, "├─ chain") {
+		t.Fatalf("help should hide overlay section:\n%s", got)
+	}
+}
+
 func TestNewStoresChains(t *testing.T) {
 	m := newTestModel()
 	if !equalStr(m.chains, testChains()) {
@@ -233,6 +286,31 @@ func TestRuleRowPlainNoANSI(t *testing.T) {
 	if !cellEq(row, "255.255.255.255/32") {
 		t.Fatalf("Destination CIDR missing from ruleRow: %v", row)
 	}
+	if row[len(row)-1] != "-" {
+		t.Fatalf("empty comment should render as dash, last cell=%q row=%v", row[len(row)-1], row)
+	}
+}
+
+func TestCommentColumn(t *testing.T) {
+	r := []iptables.Rule{{
+		Table: "filter", Chain: "INPUT", Index: 1, Protocol: "tcp",
+		Dport: iptables.Port{Start: 22}, Source: "10.0.0.0/8", Destination: "0.0.0.0/0",
+		Target: "ACCEPT", Action: iptables.ActionAllow, Comment: "SSH from office", Raw: "ssh",
+	}}
+	row := ruleRow(r[0])
+	if !cellEq(row, "SSH from office") {
+		t.Fatalf("ruleRow missing comment: %v", row)
+	}
+	m := New(stubLoader{res: iptables.ParseResult{Rules: r, Chains: []string{"INPUT"}}}, r, []string{"INPUT"}, nil)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	m = next.(Model)
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "COMMENT") {
+		t.Fatalf("COMMENT header missing:\n%s", got)
+	}
+	if !strings.Contains(got, "SSH from office") {
+		t.Fatalf("comment missing from view:\n%s", got)
+	}
 }
 
 func TestSelectedRowCellsHaveNoANSI(t *testing.T) {
@@ -269,6 +347,21 @@ func TestIPv4CIDRNotTruncated(t *testing.T) {
 	}
 }
 
+func TestCommentShrinksToFitNarrowWidth(t *testing.T) {
+	base := ruleColumns()
+	cols := columnsForWidth(100)
+	if cols[colComment].Width >= base[colComment].Width {
+		t.Fatalf("COMMENT should shrink when the table is wider than the window, base=%d got=%d",
+			base[colComment].Width, cols[colComment].Width)
+	}
+	if cols[colComment].Width < minCommentWidth {
+		t.Fatalf("COMMENT shrank below min %d: %d", minCommentWidth, cols[colComment].Width)
+	}
+	if cols[colSource].Width < minCIDRWidth || cols[colDest].Width < minCIDRWidth {
+		t.Fatal("must not shrink SOURCE/DEST below CIDR min")
+	}
+}
+
 func TestResizeGivesLeftoverToSourceDest(t *testing.T) {
 	m := newTestModel()
 	base := ruleColumns()
@@ -276,9 +369,13 @@ func TestResizeGivesLeftoverToSourceDest(t *testing.T) {
 	wide, _ := m.Update(tea.WindowSizeMsg{Width: 200, Height: 24})
 	m = wide.(Model)
 	cols := m.table.Columns()
-	if cols[5].Width <= base[5].Width || cols[6].Width <= base[6].Width {
+	if cols[colSource].Width <= base[colSource].Width || cols[colDest].Width <= base[colDest].Width {
 		t.Fatalf("leftover width should go to SOURCE/DESTINATION, base=%d/%d got=%d/%d",
-			base[5].Width, base[6].Width, cols[5].Width, cols[6].Width)
+			base[colSource].Width, base[colDest].Width, cols[colSource].Width, cols[colDest].Width)
+	}
+	if cols[colComment].Width <= base[colComment].Width {
+		t.Fatalf("leftover width should also go to COMMENT, base=%d got=%d",
+			base[colComment].Width, cols[colComment].Width)
 	}
 }
 
@@ -410,6 +507,18 @@ func TestChainShortcutsStay(t *testing.T) {
 	}
 	if m.chainIndex != 0 {
 		t.Fatalf("ALL index=%d", m.chainIndex)
+	}
+}
+
+func TestEmptyFilterMessage(t *testing.T) {
+	m := sized(press(newTestModel(), "2"))
+	m = press(m, "d")
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "no rules match filters") {
+		t.Fatalf("empty filter should explain itself:\n%s", got)
+	}
+	if !strings.Contains(got, "╭") {
+		t.Fatalf("empty state should stay framed:\n%s", got)
 	}
 }
 

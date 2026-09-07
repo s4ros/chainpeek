@@ -1,17 +1,15 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/s4ros/chainpeek/internal/view"
 )
 
-const keymapLine = "↑/↓ move  c/tab chain  1 all  2 IN  3 OUT  4 FWD  a ACCEPT  d DENY  f all  p port  r reload  ? help  q quit"
+const keymapLine = "↑/↓ move  ·  c/tab chain  ·  1 all  2 IN  3 OUT  4 FWD  ·  a ACCEPT  d DENY  f all  ·  p port  r reload  ·  ? help  q quit"
 
 const helpText = `Keys:
   ↑/k  ↓/j     Move selection (table, or chain list when focused)
@@ -30,20 +28,42 @@ const helpText = `Keys:
   q / ctrl+c   Quit`
 
 func (m Model) View() tea.View {
-	var body string
+	w := m.frameWidth()
+	inner := m.innerWidth()
+
+	var b strings.Builder
+	b.WriteString(topBar(w, m.titleLeft(), m.titleRight()))
+	b.WriteByte('\n')
+	b.WriteString(boxLines(padLeft(m.chipsLine()), inner))
+
 	if m.showHelp {
-		body = helpText
+		b.WriteByte('\n')
+		b.WriteString(sectionRule(w, ""))
+		b.WriteByte('\n')
+		b.WriteString(boxLines(padLeft(helpText), inner))
 	} else {
 		if m.chainFocus {
-			body = m.chainOverlayView() + "\n"
+			b.WriteByte('\n')
+			b.WriteString(sectionRule(w, "chain"))
+			b.WriteByte('\n')
+			b.WriteString(boxLines(m.chainOverlayView(inner), inner))
+			b.WriteByte('\n')
+			b.WriteString(sectionRule(w, "rules"))
+		} else {
+			b.WriteByte('\n')
+			b.WriteString(sectionRule(w, ""))
 		}
-		tableView := m.coloredTableView()
 		if len(m.visible) == 0 {
-			tableView = "no rules match filters\n" + tableView
+			b.WriteByte('\n')
+			b.WriteString(boxLines(padLeft(emptyStyle.Render("no rules match filters")), inner))
 		}
-		body += tableView
+		b.WriteByte('\n')
+		b.WriteString(boxLines(m.coloredTableView(), inner))
 	}
-	content := strings.Join([]string{m.header(), body, m.footer()}, "\n")
+	b.WriteByte('\n')
+	b.WriteString(bottomBar(w))
+
+	content := b.String() + "\n" + m.footer()
 	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
@@ -69,31 +89,21 @@ func (m Model) coloredTableView() string {
 	return m.table.View()
 }
 
-func (m Model) header() string {
-	chip := fmt.Sprintf("chain:%s ▾", chainLabel(m.query.Chain))
-	if m.chainFocus {
-		chip = lipgloss.NewStyle().Reverse(true).Bold(true).Render(chip)
-	}
-	return fmt.Sprintf(
-		"chainpeek v%s    %d/%d rules    %s    action:%s    sort:%s",
-		version,
-		len(m.visible),
-		len(m.all),
-		chip,
-		actionLabel(m.query.Action),
-		sortLabel(m.query.ByPort),
-	)
-}
-
 func (m Model) footer() string {
+	keys := keyStyle.Render(keymapLine)
 	if m.status == "" {
-		return keymapLine
+		return keys
 	}
 	status := m.status
-	if m.statusErr {
-		status = lipgloss.NewStyle().Foreground(lipgloss.Red).Render(status)
+	switch {
+	case m.statusErr:
+		status = errStyle.Render(status)
+	case m.status == "reloaded":
+		status = okStyle.Render(status)
+	default:
+		status = warnStyle.Render(status)
 	}
-	return status + "\n" + keymapLine
+	return status + "\n" + keys
 }
 
 func chainLabel(c string) string {
