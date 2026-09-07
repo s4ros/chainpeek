@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/s4ros/chainpeek/internal/iptables"
 	"github.com/s4ros/chainpeek/internal/view"
@@ -153,6 +154,58 @@ func TestHeaderChainChip(t *testing.T) {
 	got = stripANSI(m.View().Content)
 	if !strings.Contains(got, "chain:INPUT ▾") {
 		t.Fatalf("INPUT chip missing:\n%s", got)
+	}
+}
+
+func TestFrameChrome(t *testing.T) {
+	m := sized(newTestModel())
+	raw := m.View().Content
+	got := stripANSI(raw)
+	for _, tok := range []string{"╭", "╰", "│", "chainpeek", "4/4 rules", "chain:ALL ▾", "action:ALL", "sort:CHAIN"} {
+		if !strings.Contains(got, tok) {
+			t.Fatalf("%q missing from framed view:\n%s", tok, got)
+		}
+	}
+	if strings.Contains(got, "├─ chain") {
+		t.Fatalf("chain section should be hidden until overlay focus:\n%s", got)
+	}
+	for _, line := range strings.Split(strings.TrimRight(raw, "\n"), "\n") {
+		plain := stripANSI(line)
+		if plain == "" {
+			continue
+		}
+		r := []rune(plain)[0]
+		switch r {
+		case '╭', '╰', '│', '├':
+			if n := lipgloss.Width(line); n != 120 {
+				t.Fatalf("frame line width %d want 120: %q", n, plain)
+			}
+		}
+	}
+}
+
+func TestOverlaySectionTitle(t *testing.T) {
+	m := sized(press(newTestModel(), "c"))
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "├─ chain") {
+		t.Fatalf("focused overlay should have titled separator:\n%s", got)
+	}
+	if !strings.Contains(got, "▸ ALL") {
+		t.Fatalf("overlay cursor missing:\n%s", got)
+	}
+}
+
+func TestHelpFramed(t *testing.T) {
+	m := sized(press(newTestModel(), "?"))
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "help") {
+		t.Fatalf("help title missing:\n%s", got)
+	}
+	if !strings.Contains(got, "╭") || !strings.Contains(got, "Focus chain dropdown") {
+		t.Fatalf("help should stay inside the frame:\n%s", got)
+	}
+	if strings.Contains(got, "├─ chain") {
+		t.Fatalf("help should hide overlay section:\n%s", got)
 	}
 }
 
@@ -410,6 +463,18 @@ func TestChainShortcutsStay(t *testing.T) {
 	}
 	if m.chainIndex != 0 {
 		t.Fatalf("ALL index=%d", m.chainIndex)
+	}
+}
+
+func TestEmptyFilterMessage(t *testing.T) {
+	m := sized(press(newTestModel(), "2"))
+	m = press(m, "d")
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "no rules match filters") {
+		t.Fatalf("empty filter should explain itself:\n%s", got)
+	}
+	if !strings.Contains(got, "╭") {
+		t.Fatalf("empty state should stay framed:\n%s", got)
 	}
 }
 

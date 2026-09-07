@@ -151,16 +151,17 @@ func (m *Model) reload() {
 
 func (m *Model) resize() {
 	if m.width > 0 {
-		m.table.SetWidth(m.width)
-		m.table.SetColumns(columnsForWidth(m.width))
+		inner := m.innerWidth()
+		m.table.SetWidth(inner)
+		m.table.SetColumns(columnsForWidth(inner))
 	}
 	if m.height > 0 {
-		h := m.height - 4
+		h := m.height - chromeBase - chromeTableRule
 		if m.chainFocus && !m.showHelp {
-			h -= m.overlayHeight()
+			h -= m.overlayHeight() + overlayRule
 		}
-		if h < 3 {
-			h = 3
+		if h < minTableHeight {
+			h = minTableHeight
 		}
 		m.table.SetHeight(h)
 	}
@@ -202,7 +203,7 @@ func (m *Model) overlayHeight() int {
 	if m.height <= 0 {
 		return n
 	}
-	capH := m.height - 7 // header, footer, 3 table rows
+	capH := m.height - chromeBase - chromeTableRule - overlayRule - minTableHeight
 	if capH < 1 {
 		capH = 1
 	}
@@ -281,7 +282,7 @@ func overlayLabel(name string) string {
 	return name
 }
 
-func (m Model) chainOverlayView() string {
+func (m Model) chainOverlayView(innerW int) string {
 	items := m.overlayItems()
 	h := m.overlayHeight()
 	start := m.chainOffset
@@ -301,8 +302,13 @@ func (m Model) chainOverlayView() string {
 		if i == m.chainIndex {
 			prefix = "▸ "
 		}
-		b.WriteString(prefix)
-		b.WriteString(overlayLabel(items[i]))
+		line := " " + prefix + overlayLabel(items[i])
+		if i == m.chainIndex {
+			line = chipOnStyle.Render(padInner(line, innerW))
+		} else {
+			line = metaStyle.Render(line)
+		}
+		b.WriteString(line)
 		if i+1 < end {
 			b.WriteByte('\n')
 		}
@@ -383,7 +389,7 @@ func navKeyMap() table.KeyMap {
 
 func tableStyles() table.Styles {
 	s := table.DefaultStyles()
-	s.Header = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	s.Header = headerStyle
 	s.Cell = lipgloss.NewStyle().Padding(0, 1)
 	// Reverse wraps the joined row. Cells must stay unstyled so a per-cell
 	// reset cannot clear reverse for the rest of the selection.
