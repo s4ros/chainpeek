@@ -301,6 +301,61 @@ func TestRuleRowPlainNoANSI(t *testing.T) {
 	}
 }
 
+func TestIfaceColumn(t *testing.T) {
+	plain := ruleRow(iptables.Rule{InIface: "lo", Target: "ACCEPT"})
+	if plain[colIface] != "lo" {
+		t.Fatalf("in iface: %v", plain)
+	}
+	out := ruleRow(iptables.Rule{OutIface: "eth0", Target: "ACCEPT"})
+	if out[colIface] != "eth0" {
+		t.Fatalf("out iface: %v", out)
+	}
+	both := ruleRow(iptables.Rule{InIface: "lo", OutIface: "eth0", Target: "ACCEPT"})
+	if both[colIface] != "lo→eth0" {
+		t.Fatalf("both ifaces: %v", both)
+	}
+	neg := ruleRow(iptables.Rule{InIface: "lo", InIfaceNeg: true, OutIface: "eth0", Target: "ACCEPT"})
+	if neg[colIface] != "!lo→eth0" {
+		t.Fatalf("negated in: %v", neg)
+	}
+	bothNeg := ruleRow(iptables.Rule{InIface: "lo", InIfaceNeg: true, OutIface: "eth0", OutIfaceNeg: true, Target: "ACCEPT"})
+	if bothNeg[colIface] != "!lo→!eth0" {
+		t.Fatalf("both negated: %v", bothNeg)
+	}
+	none := ruleRow(iptables.Rule{Target: "ACCEPT"})
+	if none[colIface] != "-" {
+		t.Fatalf("missing iface: %v", none)
+	}
+
+	r := []iptables.Rule{{
+		Table: "filter", Chain: "INPUT", Index: 1, InIface: "lo",
+		Target: "ACCEPT", Action: iptables.ActionAllow, Raw: "lo",
+	}}
+	res := iptables.ParseResult{Rules: r, Chains: []string{"INPUT"}}
+	m := New(stubLoader{res: res}, res)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	m = next.(Model)
+	got := stripANSI(m.View().Content)
+	if !strings.Contains(got, "IFACE") {
+		t.Fatalf("IFACE header missing:\n%s", got)
+	}
+	found := false
+	for _, line := range strings.Split(got, "\n") {
+		if strings.Contains(line, "INPUT") && strings.Contains(line, " lo") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("iface missing from view:\n%s", got)
+	}
+	for _, w := range []int{80, 100, 200} {
+		cols := columnsForWidth(w)
+		if cols[colIface].Title != "IFACE" || cols[colIface].Width != ifaceWidth {
+			t.Fatalf("width %d changed IFACE: %+v", w, cols[colIface])
+		}
+	}
+}
+
 func TestCommentColumn(t *testing.T) {
 	r := []iptables.Rule{{
 		Table: "filter", Chain: "INPUT", Index: 1, Protocol: "tcp",
@@ -350,7 +405,7 @@ func TestIPv4CIDRNotTruncated(t *testing.T) {
 		t.Fatalf("ruleRow missing full CIDR: %v", row)
 	}
 	cols := m.table.Columns()
-	if len(cols) < 7 || cols[5].Width < 18 || cols[6].Width < 18 {
+	if cols[colSource].Width < 18 || cols[colDest].Width < 18 {
 		t.Fatalf("SOURCE/DESTINATION width must be >= 18, got %+v", cols)
 	}
 	got := stripANSI(m.View().Content)

@@ -7,12 +7,13 @@ rule in a keyboard-driven table, and lets you filter by chain and action and
 sort by port — without leaving the terminal.
 
 ```
-  CHAIN    PROTO  DPORT       SOURCE          DESTINATION     TARGET
-▸ INPUT    tcp    22          10.0.0.0/8      0.0.0.0/0       ACCEPT
-  INPUT    tcp    80          0.0.0.0/0       0.0.0.0/0       ACCEPT
-  INPUT    tcp    443         0.0.0.0/0       0.0.0.0/0       ACCEPT
-  FORWARD  tcp    80          192.168.1.0/24  0.0.0.0/0       ACCEPT
-  INPUT    all    -           0.0.0.0/0       0.0.0.0/0       REJECT
+  CHAIN    IFACE  PROTO  DPORT       SOURCE          DESTINATION     TARGET
+▸ INPUT    lo     all    -           0.0.0.0/0       0.0.0.0/0       ACCEPT
+  INPUT    -      tcp    22          10.0.0.0/8      0.0.0.0/0       ACCEPT
+  INPUT    -      tcp    80          0.0.0.0/0       0.0.0.0/0       ACCEPT
+  INPUT    -      tcp    443         0.0.0.0/0       0.0.0.0/0       ACCEPT
+  FORWARD  -      tcp    80          192.168.1.0/24  0.0.0.0/0       ACCEPT
+  INPUT    -      all    -           0.0.0.0/0       0.0.0.0/0       REJECT
 ```
 
 Status: interactive TUI is implemented. Use `--file` for dumps or run live with sudo.

@@ -40,7 +40,9 @@ type Rule struct {
 	Index       int
 	Protocol    string
 	InIface     string
+	InIfaceNeg  bool
 	OutIface    string
+	OutIfaceNeg bool
 	Source      string
 	Destination string
 	Sport       Port

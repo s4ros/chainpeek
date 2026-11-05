@@ -321,17 +321,20 @@ func (m Model) chainOverlayView(innerW int) string {
 
 const minCIDRWidth = 18
 const minCommentWidth = 8
+const ifaceWidth = 12
 
 const (
-	colSource  = 5
-	colDest    = 6
-	colComment = 8
+	colIface   = 2
+	colSource  = 6
+	colDest    = 7
+	colComment = 9
 )
 
 func ruleColumns() []table.Column {
 	return []table.Column{
 		{Title: "#", Width: 4},
 		{Title: "CHAIN", Width: 12},
+		{Title: "IFACE", Width: ifaceWidth},
 		{Title: "PROTO", Width: 6},
 		{Title: "DPORT", Width: 10},
 		{Title: "SPORT", Width: 10},
@@ -427,6 +430,7 @@ func ruleRow(r iptables.Rule) table.Row {
 	return table.Row{
 		strconv.Itoa(r.Index),
 		dash(r.Chain),
+		formatIface(r),
 		dash(r.Protocol),
 		formatPort(r.Dport),
 		formatPort(r.Sport),
@@ -435,6 +439,31 @@ func ruleRow(r iptables.Rule) table.Row {
 		dash(r.Target),
 		dash(r.Comment),
 	}
+}
+
+func formatIface(r iptables.Rule) string {
+	in := ifaceName(r.InIface, r.InIfaceNeg)
+	out := ifaceName(r.OutIface, r.OutIfaceNeg)
+	switch {
+	case in != "" && out != "":
+		return in + "→" + out
+	case in != "":
+		return in
+	case out != "":
+		return out
+	default:
+		return "-"
+	}
+}
+
+func ifaceName(name string, neg bool) string {
+	if name == "" {
+		return ""
+	}
+	if neg {
+		return "!" + name
+	}
+	return name
 }
 
 func rowStyle(r iptables.Rule) lipgloss.Style {

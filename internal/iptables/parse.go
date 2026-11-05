@@ -83,6 +83,7 @@ func parseRule(table, line string) (Rule, bool) {
 		Raw:   line,
 	}
 	var extra []string
+	var negateIface bool
 	for i := 2; i < len(fields); i++ {
 		f := fields[i]
 		take := func() (string, bool) {
@@ -93,6 +94,12 @@ func parseRule(table, line string) (Rule, bool) {
 			return fields[i], true
 		}
 		switch f {
+		case "!":
+			if i+1 < len(fields) && (fields[i+1] == "-i" || fields[i+1] == "-o") {
+				negateIface = true
+				continue
+			}
+			extra = append(extra, f)
 		case "-p", "--protocol":
 			if v, ok := take(); ok {
 				r.Protocol = v
@@ -100,11 +107,15 @@ func parseRule(table, line string) (Rule, bool) {
 		case "-i":
 			if v, ok := take(); ok {
 				r.InIface = v
+				r.InIfaceNeg = negateIface
 			}
+			negateIface = false
 		case "-o":
 			if v, ok := take(); ok {
 				r.OutIface = v
+				r.OutIfaceNeg = negateIface
 			}
+			negateIface = false
 		case "-s":
 			if v, ok := take(); ok {
 				r.Source = v

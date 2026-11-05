@@ -26,6 +26,12 @@ func TestParseTestdata(t *testing.T) {
 	if ssh.Chain != "INPUT" || ssh.Index != 4 || ssh.Dport.Start != 22 || ssh.Source != "10.0.0.0/8" || ssh.Action != ActionAllow || ssh.Comment != "SSH from office" {
 		t.Fatalf("ssh rule: %+v", ssh)
 	}
+	if filter[0].InIface != "lo" || filter[0].InIfaceNeg || filter[0].OutIface != "" {
+		t.Fatalf("loopback iface: %+v", filter[0])
+	}
+	if res.Rules[len(res.Rules)-1].OutIface != "eth0" || res.Rules[len(res.Rules)-1].OutIfaceNeg {
+		t.Fatalf("masquerade iface: %+v", res.Rules[len(res.Rules)-1])
+	}
 
 	rng := findDport(t, filter, 1024)
 	if rng.Dport.End != 65535 || rng.Action != ActionDeny {
@@ -86,6 +92,42 @@ func TestParseSkipsMissingTarget(t *testing.T) {
 	}
 	if len(res.Warnings) == 0 {
 		t.Fatal("expected warning for -A with no target")
+	}
+}
+
+func TestParseIfaceNegation(t *testing.T) {
+	in := strings.Join([]string{
+		"*filter",
+		":INPUT DROP [0:0]",
+		":FORWARD DROP [0:0]",
+		"-A INPUT ! -i lo -j ACCEPT",
+		"-A FORWARD -i eth0 ! -o eth1 -j ACCEPT",
+		"-A FORWARD ! -i lo ! -o eth0 -j DROP",
+		"-A INPUT ! -s 10.0.0.0/8 -j DROP",
+		"COMMIT",
+	}, "\n") + "\n"
+	res, err := Parse(strings.NewReader(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Rules) != 4 {
+		t.Fatalf("rules=%d", len(res.Rules))
+	}
+	lo := res.Rules[0]
+	if lo.InIface != "lo" || !lo.InIfaceNeg || lo.OutIface != "" || strings.Contains(lo.Extra, "!") {
+		t.Fatalf("negated in: %+v", lo)
+	}
+	fwd := res.Rules[1]
+	if fwd.InIface != "eth0" || fwd.InIfaceNeg || fwd.OutIface != "eth1" || !fwd.OutIfaceNeg {
+		t.Fatalf("mixed ifaces: %+v", fwd)
+	}
+	both := res.Rules[2]
+	if both.InIface != "lo" || !both.InIfaceNeg || both.OutIface != "eth0" || !both.OutIfaceNeg {
+		t.Fatalf("both negated: %+v", both)
+	}
+	src := res.Rules[3]
+	if src.InIface != "" || !strings.Contains(src.Extra, "!") {
+		t.Fatalf("non-iface negation must stay in Extra: %+v", src)
 	}
 }
 
